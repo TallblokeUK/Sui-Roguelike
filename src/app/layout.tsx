@@ -26,6 +26,7 @@ export const metadata: Metadata = {
   title: "Crypts of Sui — On-Chain Roguelike",
   description:
     "A fully on-chain roguelike dungeon crawler built on Sui. Mint heroes, explore dungeons, fight monsters, collect loot. Permadeath is real.",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({

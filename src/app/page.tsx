@@ -66,11 +66,15 @@ export default function Home() {
       </header>
 
       {/* ─── Hero section ─── */}
-      <section className="relative min-h-dvh flex flex-col items-center justify-center px-6 text-center">
-        {/* Torch glow behind title */}
+      <section className="relative min-h-dvh flex flex-col items-center justify-center px-6 text-center overflow-hidden">
+        {/* Ambient torch glow — soft radial light, not a shape */}
         <div
-          className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full pointer-events-none"
-          style={{ animation: "torchPulse 6s ease-in-out infinite" }}
+          className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] pointer-events-none opacity-[0.07]"
+          style={{
+            background: "radial-gradient(ellipse, rgba(232, 123, 53, 1) 0%, transparent 60%)",
+            animation: "torchPulse 6s ease-in-out infinite",
+            filter: "blur(60px)",
+          }}
         />
 
         <div className="relative fade-in" style={{ animationDelay: "0.2s" }}>
@@ -195,7 +199,7 @@ export default function Home() {
       </section>
 
       {/* ─── On-chain explainer ─── */}
-      <section className="px-6 py-24 max-w-3xl mx-auto text-center">
+      <section className="px-6 py-20 max-w-3xl mx-auto text-center">
         <div className="rune-divider mb-16 text-sm font-[family-name:var(--font-display)] tracking-[0.2em] uppercase">
           Built Different
         </div>
@@ -224,12 +228,12 @@ export default function Home() {
       </section>
 
       {/* ─── CTA ─── */}
-      <section className="px-6 py-32 text-center">
+      <section className="px-6 py-24 text-center">
         <div
-          className="inline-block mb-8 text-4xl"
+          className="inline-block mb-8 text-3xl text-torch"
           style={{ animation: "skullFloat 5s ease-in-out infinite" }}
         >
-          &#x2694;
+          &#x2620;
         </div>
         <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-4xl text-stone-200 tracking-wide mb-4">
           Ready to Descend?
