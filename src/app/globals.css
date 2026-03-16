@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Cinzel", serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-stone-950: #0c0a09;
+  --color-stone-900: #1c1917;
+  --color-stone-800: #292524;
+  --color-stone-700: #44403c;
+  --color-stone-500: #78716c;
+  --color-stone-400: #a8a29e;
+  --color-stone-300: #d6d3d1;
+
+  --color-blood: #dc2626;
+  --color-blood-dim: #991b1b;
+  --color-gold: #f59e0b;
+  --color-gold-dim: #92400e;
+  --color-heal: #22c55e;
+  --color-mana: #6366f1;
+  --color-torch: #fb923c;
+  --color-ice: #67e8f9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-stone-950);
+  color: var(--color-stone-300);
+  min-height: 100dvh;
+}
+
+/* Dungeon card */
+.card {
+  background: linear-gradient(145deg, rgba(28, 25, 23, 0.9), rgba(12, 10, 9, 0.95));
+  border: 1px solid var(--color-stone-800);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  transition: border-color 0.2s;
+}
+.card:hover {
+  border-color: var(--color-stone-700);
+}
+
+/* Torch flicker */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+  25%, 75% { opacity: 0.92; }
+}
+.torch-glow {
+  animation: flicker 3s ease-in-out infinite;
+}
+
+/* Health bar */
+.health-bar {
+  background: var(--color-stone-800);
+  border-radius: 2px;
+  overflow: hidden;
+  height: 8px;
+}
+.health-bar-fill {
+  background: linear-gradient(90deg, var(--color-blood), var(--color-blood-dim));
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+/* Fade in */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fadeUp 0.4s ease forwards;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-stone-950); }
+::-webkit-scrollbar-thumb { background: var(--color-stone-700); border-radius: 3px; }
