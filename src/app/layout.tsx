@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cinzel, Inter, JetBrains_Mono } from "next/font/google";
+import { Cinzel, Cormorant_Garamond, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/providers/WalletProvider";
 
@@ -9,9 +9,10 @@ const cinzel = Cinzel({
   display: "swap",
 });
 
-const inter = Inter({
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -33,7 +34,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${cinzel.variable} ${inter.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${cinzel.variable} ${cormorant.variable} ${jetbrains.variable}`}>
       <body className="antialiased">
         <WalletProvider>{children}</WalletProvider>
       </body>

@@ -2,25 +2,28 @@
 
 @theme {
   --font-display: "Cinzel", serif;
-  --font-body: "Inter", sans-serif;
+  --font-body: "Cormorant Garamond", serif;
   --font-mono: "JetBrains Mono", monospace;
 
-  --color-stone-950: #0c0a09;
+  --color-stone-950: #0a0908;
   --color-stone-900: #1c1917;
   --color-stone-800: #292524;
   --color-stone-700: #44403c;
   --color-stone-500: #78716c;
   --color-stone-400: #a8a29e;
   --color-stone-300: #d6d3d1;
+  --color-stone-200: #e7e5e4;
 
   --color-blood: #dc2626;
   --color-blood-dim: #991b1b;
-  --color-gold: #f59e0b;
+  --color-gold: #d4a447;
   --color-gold-dim: #92400e;
+  --color-gold-bright: #fbbf24;
   --color-heal: #22c55e;
   --color-mana: #6366f1;
-  --color-torch: #fb923c;
+  --color-torch: #e87b35;
   --color-ice: #67e8f9;
+  --color-parchment: #c4b18a;
 }
 
 * {
@@ -36,31 +39,70 @@ body {
   background: var(--color-stone-950);
   color: var(--color-stone-300);
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
-/* Dungeon card */
+/* ─── Stone texture background ─── */
+.stone-bg {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(232, 123, 53, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 0%, rgba(232, 123, 53, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(99, 102, 241, 0.03) 0%, transparent 40%),
+    var(--color-stone-950);
+}
+
+/* ─── Noise overlay ─── */
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ─── Dungeon card ─── */
 .card {
-  background: linear-gradient(145deg, rgba(28, 25, 23, 0.9), rgba(12, 10, 9, 0.95));
-  border: 1px solid var(--color-stone-800);
-  border-radius: 0.5rem;
+  background: linear-gradient(160deg, rgba(28, 25, 23, 0.85), rgba(10, 9, 8, 0.95));
+  border: 1px solid rgba(68, 64, 60, 0.5);
+  border-radius: 0.25rem;
   padding: 1.5rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  position: relative;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(212, 164, 71, 0.03) 0%, transparent 40%);
+  pointer-events: none;
 }
 .card:hover {
-  border-color: var(--color-stone-700);
+  border-color: rgba(212, 164, 71, 0.2);
+  box-shadow: 0 0 30px rgba(212, 164, 71, 0.03);
 }
 
-/* Torch flicker */
+/* ─── Torch flicker ─── */
 @keyframes flicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
-  25%, 75% { opacity: 0.92; }
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  10% { opacity: 0.88; filter: brightness(0.95); }
+  30% { opacity: 0.95; filter: brightness(1.05); }
+  50% { opacity: 0.82; filter: brightness(0.9); }
+  70% { opacity: 0.97; filter: brightness(1.02); }
+  90% { opacity: 0.86; filter: brightness(0.92); }
 }
 .torch-glow {
-  animation: flicker 3s ease-in-out infinite;
+  animation: flicker 4s ease-in-out infinite;
 }
 
-/* Health bar */
+@keyframes torchPulse {
+  0%, 100% { box-shadow: 0 0 60px rgba(232, 123, 53, 0.15), 0 0 120px rgba(232, 123, 53, 0.05); }
+  50% { box-shadow: 0 0 80px rgba(232, 123, 53, 0.25), 0 0 160px rgba(232, 123, 53, 0.08); }
+}
+
+/* ─── Health bar ─── */
 .health-bar {
   background: var(--color-stone-800);
   border-radius: 2px;
@@ -73,16 +115,104 @@ body {
   transition: width 0.5s ease;
 }
 
-/* Fade in */
+/* ─── Animations ─── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-up {
-  animation: fadeUp 0.4s ease forwards;
+  animation: fadeUp 0.6s ease forwards;
+  opacity: 0;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--color-stone-950); }
-::-webkit-scrollbar-thumb { background: var(--color-stone-700); border-radius: 3px; }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: fadeIn 1s ease forwards;
+  opacity: 0;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes skullFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* ─── Rune decoration ─── */
+.rune-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--color-stone-700);
+}
+.rune-divider::before,
+.rune-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-stone-700), transparent);
+}
+
+/* ─── Activity feed ─── */
+@keyframes feedSlide {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.feed-item {
+  animation: feedSlide 0.4s ease forwards;
+}
+
+/* ─── CTA button ─── */
+.cta-btn {
+  position: relative;
+  background: linear-gradient(135deg, rgba(212, 164, 71, 0.15), rgba(212, 164, 71, 0.05));
+  border: 1px solid rgba(212, 164, 71, 0.3);
+  color: var(--color-gold);
+  padding: 0.75rem 2rem;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s;
+  overflow: hidden;
+}
+.cta-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(212, 164, 71, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.cta-btn:hover {
+  border-color: rgba(212, 164, 71, 0.6);
+  box-shadow: 0 0 30px rgba(212, 164, 71, 0.1), inset 0 0 30px rgba(212, 164, 71, 0.05);
+  text-shadow: 0 0 10px rgba(212, 164, 71, 0.3);
+}
+.cta-btn:hover::before {
+  opacity: 1;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-stone-800); border-radius: 2px; }
+
+/* ─── Separator glyph ─── */
+.glyph {
+  color: var(--color-stone-700);
+  font-size: 0.75rem;
+  letter-spacing: 0.3em;
+}
