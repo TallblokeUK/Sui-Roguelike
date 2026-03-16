@@ -216,3 +216,20 @@ body {
   font-size: 0.75rem;
   letter-spacing: 0.3em;
 }
+
+/* ─── Dungeon grid ─── */
+.dungeon-grid {
+  background: var(--color-stone-950);
+  border: 1px solid rgba(68, 64, 60, 0.3);
+  padding: 2px;
+}
+.tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  width: 100%;
+}
+.tile-hidden {
+  color: transparent;
+}

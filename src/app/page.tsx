@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
-import { GameLobby } from "@/components/GameLobby";
+import Link from "next/link";
 
 // Simulated activity feed — will be real once contracts are deployed
 const DEATH_FEED = [
@@ -31,23 +30,6 @@ const RARITY_COLORS: Record<string, string> = {
 
 export default function Home() {
   const account = useCurrentAccount();
-  const [showGame, setShowGame] = useState(false);
-
-  if (account && showGame) {
-    return (
-      <div className="min-h-dvh flex flex-col stone-bg noise">
-        <header className="flex items-center justify-between px-6 py-4 border-b border-stone-800/50">
-          <h1 className="font-[family-name:var(--font-display)] text-lg tracking-[0.2em] text-stone-400">
-            Crypts of Sui
-          </h1>
-          <ConnectButton />
-        </header>
-        <main className="flex-1 flex items-center justify-center p-6">
-          <GameLobby address={account.address} />
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-dvh stone-bg noise">
@@ -56,13 +38,9 @@ export default function Home() {
         <div className="font-[family-name:var(--font-display)] text-xs tracking-[0.3em] text-stone-600 uppercase">
           Crypts of Sui
         </div>
-        {account ? (
-          <button onClick={() => setShowGame(true)} className="cta-btn text-xs py-2 px-4">
-            Enter
-          </button>
-        ) : (
-          <ConnectButton />
-        )}
+        <Link href="/game" className="cta-btn text-xs py-2 px-4">
+          Play
+        </Link>
       </header>
 
       {/* ─── Hero section ─── */}
@@ -242,7 +220,9 @@ export default function Home() {
           No wallet needed to explore. Connect when you&rsquo;re ready to play.
         </p>
         <div className="flex justify-center">
-          <ConnectButton />
+          <Link href="/game" className="cta-btn">
+            Enter the Crypts
+          </Link>
         </div>
       </section>
 
