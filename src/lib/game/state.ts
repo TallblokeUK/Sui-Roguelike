@@ -59,6 +59,8 @@ export function createInitialState(): GameState {
     rooms: [],
     log: [{ text: "Welcome to the Crypts of Sui.", type: "info" }],
     turnsElapsed: 0,
+    killCount: 0,
+    causeOfDeath: "",
   };
 }
 
@@ -166,10 +168,15 @@ function checkLevelUp(state: GameState): GameState {
 // ─── Death check ───
 function checkDeath(state: GameState): GameState {
   if (state.hero.hp <= 0) {
+    // Find the last combat log entry as cause of death
+    const lastCombatLog = [...state.log].reverse().find((l) => l.type === "combat");
+    const causeOfDeath = lastCombatLog?.text ?? "Unknown causes";
+
     return {
       ...state,
       phase: "dead",
       hero: { ...state.hero, hp: 0 },
+      causeOfDeath,
       log: [
         ...state.log,
         { text: `${state.hero.name} has perished on floor ${state.floor}. ☠`, type: "death" },
@@ -228,10 +235,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         let monsters: Monster[];
         let hero = { ...state.hero };
 
+        let killCount = state.killCount;
         if (mon.hp <= 0) {
           // Monster dies
           monsters = state.monsters.filter((_, i) => i !== targetMonster);
           hero.xp += mon.xpReward;
+          killCount += 1;
           log.push({ text: `${mon.name} is slain! (+${mon.xpReward} XP)`, type: "combat" });
         } else {
           monsters = [...state.monsters];
@@ -244,6 +253,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           monsters,
           log,
           turnsElapsed: state.turnsElapsed + 1,
+          killCount,
         };
 
         result = checkLevelUp(result);

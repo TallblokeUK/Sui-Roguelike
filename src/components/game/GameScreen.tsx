@@ -1,8 +1,9 @@
 "use client";
 
-import { useReducer, useEffect, useCallback, useRef } from "react";
+import { useReducer, useEffect, useCallback, useRef, useState } from "react";
 import {
   type GameState,
+  type LeaderboardEntry,
   type Direction,
   type Item,
   TileType,
@@ -15,6 +16,7 @@ import {
   getHeroAtk,
   getHeroDef,
 } from "@/lib/game/state";
+import { loadLeaderboard, saveRun } from "@/lib/game/leaderboard";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "text-stone-400",
@@ -34,8 +36,24 @@ const LOG_COLORS: Record<string, string> = {
 
 export function GameScreen() {
   const [state, dispatch] = useReducer(gameReducer, undefined, createInitialState);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const deathSaved = useRef(false);
+
+  // Load leaderboard on mount
+  useEffect(() => {
+    setLeaderboard(loadLeaderboard());
+  }, []);
+
+  // Save run on death (once)
+  useEffect(() => {
+    if (state.phase === "dead" && !deathSaved.current) {
+      deathSaved.current = true;
+      const updated = saveRun(state);
+      setLeaderboard(updated);
+    }
+  }, [state.phase, state]);
 
   // Auto-scroll log
   useEffect(() => {
@@ -87,12 +105,12 @@ export function GameScreen() {
 
   // ─── Naming screen ───
   if (state.phase === "naming") {
-    return <NamingScreen nameRef={nameRef} dispatch={dispatch} />;
+    return <NamingScreen nameRef={nameRef} dispatch={dispatch} leaderboard={leaderboard} />;
   }
 
   // ─── Death screen ───
   if (state.phase === "dead") {
-    return <DeathScreen state={state} dispatch={dispatch} />;
+    return <DeathScreen state={state} leaderboard={leaderboard} />;
   }
 
   // ─── Game screen ───
@@ -104,7 +122,7 @@ export function GameScreen() {
           Crypts of Sui
         </h1>
         <div className="font-[family-name:var(--font-mono)] text-xs text-stone-600">
-          Floor {state.floor} · Turn {state.turnsElapsed}
+          Floor {state.floor} · Kills {state.killCount} · Turn {state.turnsElapsed}
         </div>
       </header>
 
@@ -380,9 +398,11 @@ function InventoryItem({
 function NamingScreen({
   nameRef,
   dispatch,
+  leaderboard,
 }: {
   nameRef: React.RefObject<HTMLInputElement | null>;
   dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
+  leaderboard: LeaderboardEntry[];
 }) {
   const handleStart = () => {
     const name = nameRef.current?.value.trim();
@@ -390,8 +410,8 @@ function NamingScreen({
   };
 
   return (
-    <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6">
-      <div className="fade-in text-center max-w-md">
+    <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6 overflow-y-auto">
+      <div className="fade-in text-center max-w-lg py-12">
         <div className="glyph mb-6">&#x2726; &middot; &#x2726; &middot; &#x2726;</div>
         <h1 className="font-[family-name:var(--font-display)] text-4xl text-stone-200 tracking-[0.08em] mb-2">
           Create Your Hero
@@ -421,6 +441,12 @@ function NamingScreen({
           <p>Bump into enemies to attack</p>
           <p>G to pick up items · &gt; to descend stairs</p>
         </div>
+
+        {leaderboard.length > 0 && (
+          <div className="mt-12">
+            <Leaderboard entries={leaderboard} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -429,14 +455,14 @@ function NamingScreen({
 // ─── Death Screen ───
 function DeathScreen({
   state,
-  dispatch,
+  leaderboard,
 }: {
   state: GameState;
-  dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
+  leaderboard: LeaderboardEntry[];
 }) {
   return (
-    <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6">
-      <div className="fade-in text-center max-w-md">
+    <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6 overflow-y-auto">
+      <div className="fade-in text-center max-w-lg py-12">
         <div
           className="text-5xl text-blood mb-6"
           style={{ animation: "skullFloat 4s ease-in-out infinite" }}
@@ -461,28 +487,100 @@ function DeathScreen({
               <span className="text-stone-300">{state.floor}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-stone-500">Kills</span>
+              <span className="text-stone-300">{state.killCount}</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-stone-500">Turns Survived</span>
               <span className="text-stone-300">{state.turnsElapsed}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-stone-500">Cause of Death</span>
+              <span className="text-blood text-right max-w-48 truncate">{state.causeOfDeath}</span>
             </div>
           </div>
         </div>
 
         <button
-          onClick={() => dispatch({ type: "START_GAME", name: "" })}
           className="cta-btn mt-8"
-          // Reset the whole game — we re-create via a page reload trick
-          ref={(el) => {
-            if (el) {
-              el.onclick = () => window.location.reload();
-            }
-          }}
+          onClick={() => window.location.reload()}
         >
           Try Again
         </button>
 
-        <p className="text-stone-700 text-xs mt-4 font-[family-name:var(--font-body)]">
+        {leaderboard.length > 0 && (
+          <div className="mt-10">
+            <Leaderboard entries={leaderboard} highlightHero={state.hero.name} />
+          </div>
+        )}
+
+        <p className="text-stone-700 text-xs mt-6 font-[family-name:var(--font-body)]">
           The Graveyard remembers all who fell.
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Leaderboard ───
+function Leaderboard({
+  entries,
+  highlightHero,
+}: {
+  entries: LeaderboardEntry[];
+  highlightHero?: string;
+}) {
+  return (
+    <div className="card text-left">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-gold torch-glow">&#x2655;</span>
+        <h3 className="font-[family-name:var(--font-display)] text-sm tracking-[0.15em] text-stone-400 uppercase">
+          Leaderboard
+        </h3>
+      </div>
+
+      {/* Header */}
+      <div className="grid grid-cols-[1.5rem_1fr_2.5rem_2.5rem_2.5rem] gap-x-2 mb-2 text-[10px] font-[family-name:var(--font-mono)] text-stone-600 uppercase tracking-wider">
+        <span>#</span>
+        <span>Hero</span>
+        <span className="text-right">Flr</span>
+        <span className="text-right">Lvl</span>
+        <span className="text-right">Kills</span>
+      </div>
+
+      <div className="space-y-1">
+        {entries.slice(0, 10).map((entry, i) => {
+          const isHighlighted = highlightHero && entry.heroName === highlightHero;
+          const rankColors = [
+            "text-gold-bright", // 1st
+            "text-stone-300",   // 2nd
+            "text-torch",       // 3rd
+          ];
+          const rankColor = i < 3 ? rankColors[i] : "text-stone-600";
+
+          return (
+            <div
+              key={`${entry.heroName}-${entry.date}`}
+              className={`grid grid-cols-[1.5rem_1fr_2.5rem_2.5rem_2.5rem] gap-x-2 text-xs font-[family-name:var(--font-mono)] ${
+                isHighlighted ? "text-gold" : ""
+              }`}
+            >
+              <span className={rankColor}>{i + 1}</span>
+              <span className={`truncate ${isHighlighted ? "text-gold" : "text-stone-300"}`}>
+                {entry.heroName}
+              </span>
+              <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
+                {entry.floor}
+              </span>
+              <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
+                {entry.level}
+              </span>
+              <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
+                {entry.kills}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

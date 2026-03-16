@@ -110,6 +110,19 @@ export interface GameState {
   rooms: Room[];
   log: LogEntry[];
   turnsElapsed: number;
+  killCount: number;
+  causeOfDeath: string;
+}
+
+// ─── Leaderboard ───
+export interface LeaderboardEntry {
+  heroName: string;
+  level: number;
+  floor: number;
+  kills: number;
+  turns: number;
+  causeOfDeath: string;
+  date: string; // ISO string
 }
 
 // ─── Actions ───
