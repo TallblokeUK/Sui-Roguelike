@@ -4,7 +4,7 @@ let _keypair: Ed25519Keypair | null = null;
 
 export function getSponsorKeypair(): Ed25519Keypair {
   if (!_keypair) {
-    const secret = process.env.SPONSOR_SECRET_KEY;
+    const secret = process.env.SPONSOR_SECRET_KEY?.trim();
     if (!secret) throw new Error("SPONSOR_SECRET_KEY not set");
     _keypair = Ed25519Keypair.fromSecretKey(secret);
   }
