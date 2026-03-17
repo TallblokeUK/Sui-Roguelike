@@ -51,7 +51,10 @@ async function mintHeroOnChain(name: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
-  if (!res.ok) throw new Error("Failed to mint hero");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Failed to mint hero" }));
+    throw new Error(err.error || "Failed to mint hero");
+  }
   const data = await res.json();
   return data.heroObjectId || "";
 }
@@ -532,8 +535,8 @@ function NamingScreen({
     try {
       const heroObjectId = await mintHeroOnChain(name);
       dispatch({ type: "START_GAME", name, heroObjectId });
-    } catch {
-      setError("Failed to mint hero on-chain. Try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mint hero. Try again.");
       setMinting(false);
     }
   };

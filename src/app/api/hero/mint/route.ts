@@ -5,12 +5,15 @@ import { getSponsorKeypair } from "@/lib/sponsor";
 import { heroTarget } from "@/lib/contracts";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import pool from "@/lib/db";
 
 export const maxDuration = 15;
 
 /**
  * POST /api/hero/mint
  * Mint a Hero object on Sui. Sponsor keypair is both sender and gas payer.
+ * Enforces unique hero names — a name used by another player can't be reused,
+ * but you can reuse your own previous hero names.
  * Body: { name: string }
  * Returns: { heroObjectId: string, digest: string }
  */
@@ -24,6 +27,18 @@ export async function POST(req: NextRequest) {
     const { name } = await req.json();
     if (!name || typeof name !== "string") {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    // Check if another player has used this hero name
+    const { rows } = await pool.query(
+      `SELECT user_id FROM runs WHERE LOWER(hero_name) = LOWER($1) AND user_id != $2 LIMIT 1`,
+      [name.trim(), session.user.id]
+    );
+    if (rows.length > 0) {
+      return NextResponse.json(
+        { error: "That hero name has been claimed by another player. Choose a different name." },
+        { status: 409 }
+      );
     }
 
     const keypair = getSponsorKeypair();
