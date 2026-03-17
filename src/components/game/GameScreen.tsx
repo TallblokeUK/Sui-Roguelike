@@ -153,17 +153,7 @@ export function GameScreen() {
     nameRef.current?.focus();
   }, []);
 
-  // Loading / auth guard
-  if (isPending) {
-    return (
-      <div className="h-dvh flex items-center justify-center stone-bg noise">
-        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-sm">Loading...</p>
-      </div>
-    );
-  }
-  if (!session) return null;
-
-  // Keyboard controls
+  // Keyboard controls — must be before early returns to satisfy hooks rules
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
       if (state.phase !== "playing") return;
@@ -198,6 +188,16 @@ export function GameScreen() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [handleKey]);
+
+  // Loading / auth guard
+  if (isPending) {
+    return (
+      <div className="h-dvh flex items-center justify-center stone-bg noise">
+        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-sm">Loading...</p>
+      </div>
+    );
+  }
+  if (!session) return null;
 
   // ─── Naming screen ───
   if (state.phase === "naming") {
