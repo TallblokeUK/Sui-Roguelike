@@ -396,6 +396,42 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case "DROP_ITEM": {
+      if (state.phase !== "playing") return state;
+      const item = state.hero.inventory.find((i) => i.id === action.itemId);
+      if (!item) return state;
+
+      const { x, y } = state.hero.pos;
+      const tile = state.map[y][x];
+
+      // Can't drop if there's already an item on this tile
+      if (tile.item) {
+        return {
+          ...state,
+          log: [
+            ...state.log,
+            { text: "There's already an item here.", type: "danger" },
+          ],
+        };
+      }
+
+      const newMap = state.map.map((row) => row.map((t) => ({ ...t })));
+      newMap[y][x].item = item;
+
+      return {
+        ...state,
+        map: newMap,
+        hero: {
+          ...state.hero,
+          inventory: state.hero.inventory.filter((i) => i.id !== action.itemId),
+        },
+        log: [
+          ...state.log,
+          { text: `Dropped ${item.name}.`, type: "info" },
+        ],
+      };
+    }
+
     case "RESET":
       return createInitialState();
 

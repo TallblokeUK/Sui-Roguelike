@@ -247,7 +247,7 @@ export function GameScreen() {
       {/* Main game area */}
       <div className="flex-1 flex min-h-0">
         {/* Left panel: Hero HUD */}
-        <aside className="w-52 border-r border-stone-800/50 p-3 flex flex-col gap-3 overflow-y-auto shrink-0">
+        <aside className="w-64 xl:w-72 border-r border-stone-800/50 p-4 flex flex-col gap-4 overflow-y-auto shrink-0">
           <HeroPanel state={state} dispatch={dispatch} />
         </aside>
 
@@ -257,24 +257,24 @@ export function GameScreen() {
         </main>
 
         {/* Right panel: Log */}
-        <aside className="w-64 border-l border-stone-800/50 flex flex-col shrink-0">
+        <aside className="w-72 xl:w-80 border-l border-stone-800/50 flex flex-col shrink-0">
           <div className="px-3 py-2 border-b border-stone-800/50">
             <h3 className="font-[family-name:var(--font-display)] text-xs tracking-[0.15em] text-stone-500 uppercase">
               Log
             </h3>
           </div>
-          <div ref={logRef} className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div ref={logRef} className="flex-1 overflow-y-auto p-4 space-y-1.5">
             {state.log.slice(-50).map((entry, i) => (
               <p
                 key={i}
-                className={`text-xs font-[family-name:var(--font-mono)] leading-relaxed ${LOG_COLORS[entry.type]}`}
+                className={`text-sm font-[family-name:var(--font-mono)] leading-relaxed ${LOG_COLORS[entry.type]}`}
               >
                 {entry.text}
               </p>
             ))}
           </div>
-          <div className="px-3 py-2 border-t border-stone-800/50">
-            <p className="text-stone-700 font-[family-name:var(--font-mono)] text-[10px]">
+          <div className="px-4 py-2 border-t border-stone-800/50">
+            <p className="text-stone-700 font-[family-name:var(--font-mono)] text-xs">
               WASD/Arrows: Move · G: Grab · &gt;: Descend · Space: Wait
             </p>
           </div>
@@ -404,17 +404,17 @@ function HeroPanel({
     <>
       {/* Hero name & level */}
       <div>
-        <div className="font-[family-name:var(--font-display)] text-sm text-stone-200 tracking-wide">
+        <div className="font-[family-name:var(--font-display)] text-base text-stone-200 tracking-wide">
           {hero.name}
         </div>
-        <div className="font-[family-name:var(--font-mono)] text-[10px] text-stone-600 mt-0.5">
+        <div className="font-[family-name:var(--font-mono)] text-xs text-stone-600 mt-0.5">
           Level {hero.level} · XP {hero.xp}/{hero.level * 20}
         </div>
       </div>
 
       {/* HP bar */}
       <div>
-        <div className="flex justify-between text-[10px] font-[family-name:var(--font-mono)] text-stone-500 mb-1">
+        <div className="flex justify-between text-xs font-[family-name:var(--font-mono)] text-stone-500 mb-1">
           <span>HP</span>
           <span className={hpPercent < 30 ? "text-blood" : "text-stone-400"}>
             {hero.hp}/{hero.maxHp}
@@ -429,7 +429,7 @@ function HeroPanel({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-1 text-[10px] font-[family-name:var(--font-mono)]">
+      <div className="grid grid-cols-2 gap-2 text-xs font-[family-name:var(--font-mono)]">
         <div className="text-stone-500">
           ATK <span className="text-torch">{getHeroAtk(hero)}</span>
         </div>
@@ -440,10 +440,10 @@ function HeroPanel({
 
       {/* Equipment */}
       <div>
-        <div className="font-[family-name:var(--font-display)] text-[10px] text-stone-500 tracking-wider uppercase mb-1">
+        <div className="font-[family-name:var(--font-display)] text-xs text-stone-500 tracking-wider uppercase mb-1">
           Equipment
         </div>
-        <div className="space-y-0.5 text-[10px] font-[family-name:var(--font-mono)]">
+        <div className="space-y-1 text-xs font-[family-name:var(--font-mono)]">
           <EquipSlot label="Wpn" item={hero.equipment.weapon} />
           <EquipSlot label="Arm" item={hero.equipment.armor} />
           <EquipSlot label="Rng" item={hero.equipment.ring} />
@@ -452,13 +452,13 @@ function HeroPanel({
 
       {/* Inventory */}
       <div>
-        <div className="font-[family-name:var(--font-display)] text-[10px] text-stone-500 tracking-wider uppercase mb-1">
+        <div className="font-[family-name:var(--font-display)] text-xs text-stone-500 tracking-wider uppercase mb-1">
           Inventory ({hero.inventory.length}/10)
         </div>
         {hero.inventory.length === 0 ? (
-          <p className="text-stone-700 text-[10px] font-[family-name:var(--font-mono)]">Empty</p>
+          <p className="text-stone-700 text-xs font-[family-name:var(--font-mono)]">Empty</p>
         ) : (
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {hero.inventory.map((item) => (
               <InventoryItem key={item.id} item={item} dispatch={dispatch} />
             ))}
@@ -471,8 +471,8 @@ function HeroPanel({
 
 function EquipSlot({ label, item }: { label: string; item: Item | null }) {
   return (
-    <div className="flex gap-1">
-      <span className="text-stone-700 w-6">{label}</span>
+    <div className="flex gap-2">
+      <span className="text-stone-700 w-8">{label}</span>
       {item ? (
         <span className={RARITY_COLORS[item.rarity]}>{item.name}</span>
       ) : (
@@ -490,24 +490,32 @@ function InventoryItem({
   dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
 }) {
   return (
-    <div className="flex items-center gap-1 group text-[10px] font-[family-name:var(--font-mono)]">
+    <div className="flex items-center gap-1.5 group text-xs font-[family-name:var(--font-mono)]">
       <span className={RARITY_COLORS[item.rarity]}>{item.glyph}</span>
       <span className={`flex-1 truncate ${RARITY_COLORS[item.rarity]}`}>{item.name}</span>
-      {item.type === "potion" ? (
+      <span className="flex gap-1.5 opacity-0 group-hover:opacity-100">
+        {item.type === "potion" ? (
+          <button
+            onClick={() => dispatch({ type: "USE_ITEM", itemId: item.id })}
+            className="text-heal hover:underline"
+          >
+            use
+          </button>
+        ) : (
+          <button
+            onClick={() => dispatch({ type: "EQUIP_ITEM", itemId: item.id })}
+            className="text-gold hover:underline"
+          >
+            eqp
+          </button>
+        )}
         <button
-          onClick={() => dispatch({ type: "USE_ITEM", itemId: item.id })}
-          className="text-heal opacity-0 group-hover:opacity-100 hover:underline"
+          onClick={() => dispatch({ type: "DROP_ITEM", itemId: item.id })}
+          className="text-stone-600 hover:text-blood hover:underline"
         >
-          use
+          drop
         </button>
-      ) : (
-        <button
-          onClick={() => dispatch({ type: "EQUIP_ITEM", itemId: item.id })}
-          className="text-gold opacity-0 group-hover:opacity-100 hover:underline"
-        >
-          eqp
-        </button>
-      )}
+      </span>
     </div>
   );
 }
