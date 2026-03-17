@@ -159,7 +159,16 @@ export function GameScreen() {
 
   // ─── Death screen ───
   if (state.phase === "dead") {
-    return <DeathScreen state={state} leaderboard={leaderboard} />;
+    return (
+      <DeathScreen
+        state={state}
+        leaderboard={leaderboard}
+        onRetry={() => {
+          deathSaved.current = false;
+          dispatch({ type: "RESET" });
+        }}
+      />
+    );
   }
 
   // ─── Game screen ───
@@ -518,9 +527,11 @@ function NamingScreen({
 function DeathScreen({
   state,
   leaderboard,
+  onRetry,
 }: {
   state: GameState;
   leaderboard: LeaderboardEntry[];
+  onRetry: () => void;
 }) {
   return (
     <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6 overflow-y-auto">
@@ -565,7 +576,7 @@ function DeathScreen({
 
         <button
           className="cta-btn mt-8"
-          onClick={() => window.location.reload()}
+          onClick={onRetry}
         >
           Try Again
         </button>

@@ -394,6 +394,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case "RESET":
+      return createInitialState();
+
     default:
       return state;
   }

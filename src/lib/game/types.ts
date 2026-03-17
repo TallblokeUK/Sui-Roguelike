@@ -134,7 +134,8 @@ export type GameAction =
   | { type: "PICKUP" }
   | { type: "USE_ITEM"; itemId: string }
   | { type: "EQUIP_ITEM"; itemId: string }
-  | { type: "WAIT" };
+  | { type: "WAIT" }
+  | { type: "RESET" };
 
 // ─── Constants ───
 export const MAP_WIDTH = 48;
