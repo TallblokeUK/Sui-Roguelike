@@ -1,0 +1,8 @@
+[package]
+name = "crypts_of_sui"
+edition = "2024.beta"
+
+[dependencies]
+
+[addresses]
+crypts_of_sui = "0x0"

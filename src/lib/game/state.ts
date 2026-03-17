@@ -61,6 +61,7 @@ export function createInitialState(): GameState {
     turnsElapsed: 0,
     killCount: 0,
     causeOfDeath: "",
+    heroObjectId: "",
   };
 }
 
@@ -194,6 +195,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         phase: "playing" as const,
         hero: { ...state.hero, name: action.name },
+        heroObjectId: action.heroObjectId,
         log: [
           ...state.log,
           { text: `${action.name} enters the Crypts of Sui...`, type: "info" as const },

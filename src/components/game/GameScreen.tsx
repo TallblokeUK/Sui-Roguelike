@@ -45,12 +45,24 @@ async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   }
 }
 
-async function saveRunToApi(state: GameState): Promise<LeaderboardEntry[]> {
+async function mintHeroOnChain(name: string): Promise<string> {
+  const res = await fetch("/api/hero/mint", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to mint hero");
+  const data = await res.json();
+  return data.heroObjectId || "";
+}
+
+async function burnHeroOnChain(state: GameState): Promise<LeaderboardEntry[]> {
   try {
-    await fetch("/api/leaderboard", {
+    await fetch("/api/hero/burn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        heroObjectId: state.heroObjectId,
         heroName: state.hero.name,
         level: state.hero.level,
         floor: state.floor,
@@ -65,6 +77,24 @@ async function saveRunToApi(state: GameState): Promise<LeaderboardEntry[]> {
   }
 }
 
+function mintItemOnChain(item: { name: string; type: string; rarity: string; value: number; glyph: string; description: string }, heroName: string, floor: number) {
+  // Fire-and-forget — don't block gameplay
+  fetch("/api/items/mint", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: item.name,
+      itemType: item.type,
+      rarity: item.rarity,
+      value: item.value,
+      glyph: item.glyph,
+      description: item.description,
+      heroName,
+      floor,
+    }),
+  }).catch(() => {}); // silently ignore failures
+}
+
 export function GameScreen() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
@@ -73,6 +103,7 @@ export function GameScreen() {
   const logRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const deathSaved = useRef(false);
+  const prevInventorySize = useRef(0);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -86,13 +117,26 @@ export function GameScreen() {
     fetchLeaderboard().then(setLeaderboard);
   }, []);
 
-  // Save run on death (once)
+  // Burn hero on death (once) — on-chain + database
   useEffect(() => {
     if (state.phase === "dead" && !deathSaved.current) {
       deathSaved.current = true;
-      saveRunToApi(state).then(setLeaderboard);
+      burnHeroOnChain(state).then(setLeaderboard);
     }
   }, [state.phase, state]);
+
+  // Mint items on-chain when picked up
+  useEffect(() => {
+    const currentSize = state.hero.inventory.length;
+    if (currentSize > prevInventorySize.current && state.phase === "playing") {
+      // New item was picked up — mint the latest one
+      const newItem = state.hero.inventory[currentSize - 1];
+      if (newItem) {
+        mintItemOnChain(newItem, state.hero.name, state.floor);
+      }
+    }
+    prevInventorySize.current = currentSize;
+  }, [state.hero.inventory.length, state.hero.name, state.floor, state.phase]);
 
   // Auto-scroll log
   useEffect(() => {
@@ -154,7 +198,7 @@ export function GameScreen() {
 
   // ─── Naming screen ───
   if (state.phase === "naming") {
-    return <NamingScreen nameRef={nameRef} dispatch={dispatch} leaderboard={leaderboard} />;
+    return <NamingScreen nameRef={nameRef} dispatch={dispatch} leaderboard={leaderboard} floor={state.floor} />;
   }
 
   // ─── Death screen ───
@@ -474,10 +518,24 @@ function NamingScreen({
   nameRef: React.RefObject<HTMLInputElement | null>;
   dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
   leaderboard: LeaderboardEntry[];
+  floor: number;
 }) {
-  const handleStart = () => {
+  const [minting, setMinting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleStart = async () => {
     const name = nameRef.current?.value.trim();
-    if (name) dispatch({ type: "START_GAME", name });
+    if (!name) return;
+
+    setMinting(true);
+    setError("");
+    try {
+      const heroObjectId = await mintHeroOnChain(name);
+      dispatch({ type: "START_GAME", name, heroObjectId });
+    } catch {
+      setError("Failed to mint hero on-chain. Try again.");
+      setMinting(false);
+    }
   };
 
   return (
@@ -497,15 +555,27 @@ function NamingScreen({
             type="text"
             placeholder="Enter hero name..."
             maxLength={24}
-            className="flex-1 bg-stone-900 border border-stone-700 rounded px-4 py-3 text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-gold/40 font-[family-name:var(--font-mono)] text-sm"
+            disabled={minting}
+            className="flex-1 bg-stone-900 border border-stone-700 rounded px-4 py-3 text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-gold/40 font-[family-name:var(--font-mono)] text-sm disabled:opacity-50"
             onKeyDown={(e) => {
               if (e.key === "Enter") handleStart();
             }}
           />
-          <button onClick={handleStart} className="cta-btn">
-            Descend
+          <button onClick={handleStart} disabled={minting} className="cta-btn disabled:opacity-50">
+            {minting ? "Minting..." : "Descend"}
           </button>
         </div>
+
+        {minting && (
+          <p className="mt-4 text-torch font-[family-name:var(--font-mono)] text-xs animate-pulse">
+            Minting hero on Sui...
+          </p>
+        )}
+        {error && (
+          <p className="mt-4 text-blood font-[family-name:var(--font-mono)] text-xs">
+            {error}
+          </p>
+        )}
 
         <div className="mt-10 text-stone-700 font-[family-name:var(--font-mono)] text-xs space-y-1">
           <p>WASD or Arrow Keys to move</p>

@@ -112,6 +112,7 @@ export interface GameState {
   turnsElapsed: number;
   killCount: number;
   causeOfDeath: string;
+  heroObjectId: string;
 }
 
 // ─── Leaderboard ───
@@ -128,7 +129,7 @@ export interface LeaderboardEntry {
 
 // ─── Actions ───
 export type GameAction =
-  | { type: "START_GAME"; name: string }
+  | { type: "START_GAME"; name: string; heroObjectId: string }
   | { type: "MOVE"; direction: Direction }
   | { type: "DESCEND" }
   | { type: "PICKUP" }

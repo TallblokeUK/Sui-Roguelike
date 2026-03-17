@@ -1,30 +1,5 @@
-import Link from "next/link";
 import { AuthButtons } from "@/components/AuthButtons";
-
-// Simulated activity feed — will be real once contracts are deployed
-const DEATH_FEED = [
-  { hero: "Valdris the Bold", level: 7, cause: "Consumed by Shadowflame Wyrm", floor: 12, time: "2m ago" },
-  { hero: "Seraphine", level: 3, cause: "Impaled by spike trap", floor: 4, time: "8m ago" },
-  { hero: "Gorath Ironhand", level: 11, cause: "Overwhelmed by Crypt Spiders", floor: 18, time: "14m ago" },
-  { hero: "Whisper", level: 5, cause: "Poisoned by Alchemist's Shade", floor: 8, time: "21m ago" },
-  { hero: "Kael Duskwalker", level: 9, cause: "Crushed by falling portcullis", floor: 15, time: "33m ago" },
-  { hero: "Thessa of Ashvale", level: 2, cause: "Devoured by Tunnel Lurker", floor: 2, time: "41m ago" },
-];
-
-const LOOT_FEED = [
-  { hero: "Mordecai", item: "Emberforged Axe", rarity: "rare", floor: 9 },
-  { hero: "Luna Brightshield", item: "Cloak of Vanishing", rarity: "epic", floor: 14 },
-  { hero: "Bram the Unlucky", item: "Cracked Healing Vial", rarity: "common", floor: 3 },
-  { hero: "Nyx", item: "Soulshard Pendant", rarity: "legendary", floor: 21 },
-  { hero: "Fenn Ashwood", item: "Iron Buckler", rarity: "common", floor: 5 },
-];
-
-const RARITY_COLORS: Record<string, string> = {
-  common: "text-stone-400",
-  rare: "text-ice",
-  epic: "text-mana",
-  legendary: "text-gold-bright",
-};
+import { LiveFeeds } from "@/components/LiveFeeds";
 
 export default function Home() {
   return (
@@ -63,13 +38,8 @@ export default function Home() {
           <div className="glyph mt-6">&#x2014; &nbsp; descent awaits &nbsp; &#x2014;</div>
         </div>
 
-        {/* Stats row */}
-        <div className="relative flex gap-10 sm:gap-16 mt-14 fade-up" style={{ animationDelay: "0.6s" }}>
-          <HeroStat value="247" label="Heroes Lost" />
-          <HeroStat value="21" label="Deepest Floor" />
-          <HeroStat value="1,043" label="Items Found" />
-          <HeroStat value="0" label="Gas Cost" />
-        </div>
+        {/* Stats row — filled by LiveFeeds client component */}
+        <LiveFeeds />
 
         {/* Scroll indicator */}
         <div
@@ -105,68 +75,6 @@ export default function Home() {
             desc="Loot is real — on-chain objects in your wallet. Trade them, equip them, hoard them. But permadeath is permanent. Die, and your hero is burned forever."
             delay={0.3}
           />
-        </div>
-      </section>
-
-      {/* ─── Live feed ─── */}
-      <section className="px-6 py-24 max-w-5xl mx-auto">
-        <div className="rune-divider mb-16 text-sm font-[family-name:var(--font-display)] tracking-[0.2em] uppercase">
-          From the Depths
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-8">
-          {/* Death feed */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-5">
-              <span className="text-blood text-lg" style={{ animation: "skullFloat 4s ease-in-out infinite" }}>&#x2620;</span>
-              <h3 className="font-[family-name:var(--font-display)] text-sm tracking-[0.15em] text-stone-400 uppercase">
-                Recent Deaths
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {DEATH_FEED.map((d, i) => (
-                <div key={i} className="feed-item flex items-start gap-3" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <span className="text-stone-700 font-[family-name:var(--font-mono)] text-xs mt-0.5 shrink-0">
-                    F{d.floor}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-stone-300 text-sm font-medium truncate">
-                      {d.hero}
-                      <span className="text-stone-600 text-xs ml-2">Lv.{d.level}</span>
-                    </div>
-                    <div className="text-stone-600 text-xs truncate">{d.cause}</div>
-                  </div>
-                  <span className="text-stone-700 text-xs ml-auto shrink-0">{d.time}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Loot feed */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-5">
-              <span className="text-gold torch-glow text-lg">&#x2666;</span>
-              <h3 className="font-[family-name:var(--font-display)] text-sm tracking-[0.15em] text-stone-400 uppercase">
-                Loot Discovered
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {LOOT_FEED.map((l, i) => (
-                <div key={i} className="feed-item flex items-start gap-3" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <span className="text-stone-700 font-[family-name:var(--font-mono)] text-xs mt-0.5 shrink-0">
-                    F{l.floor}
-                  </span>
-                  <div className="min-w-0">
-                    <div className={`text-sm font-medium truncate ${RARITY_COLORS[l.rarity]}`}>
-                      {l.item}
-                    </div>
-                    <div className="text-stone-600 text-xs">found by {l.hero}</div>
-                  </div>
-                  <span className="text-stone-700 text-xs ml-auto shrink-0 capitalize">{l.rarity}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
@@ -225,17 +133,6 @@ export default function Home() {
           Built on Sui Testnet &middot; Every action is on-chain &middot; Open source
         </p>
       </footer>
-    </div>
-  );
-}
-
-function HeroStat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="text-center">
-      <div className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl text-stone-300 tracking-wide">
-        {value}
-      </div>
-      <div className="text-stone-600 text-xs tracking-[0.15em] uppercase mt-1">{label}</div>
     </div>
   );
 }
