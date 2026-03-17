@@ -16,7 +16,8 @@ import {
   getHeroAtk,
   getHeroDef,
 } from "@/lib/game/state";
-import { loadLeaderboard, saveRun } from "@/lib/game/leaderboard";
+import { useSession, signOut } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "text-stone-400",
@@ -34,24 +35,62 @@ const LOG_COLORS: Record<string, string> = {
   death: "text-blood",
 };
 
+async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  try {
+    const res = await fetch("/api/leaderboard");
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+async function saveRunToApi(state: GameState): Promise<LeaderboardEntry[]> {
+  try {
+    await fetch("/api/leaderboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        heroName: state.hero.name,
+        level: state.hero.level,
+        floor: state.floor,
+        kills: state.killCount,
+        turns: state.turnsElapsed,
+        causeOfDeath: state.causeOfDeath,
+      }),
+    });
+    return fetchLeaderboard();
+  } catch {
+    return [];
+  }
+}
+
 export function GameScreen() {
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
   const [state, dispatch] = useReducer(gameReducer, undefined, createInitialState);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const deathSaved = useRef(false);
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isPending && !session) {
+      router.push("/login");
+    }
+  }, [isPending, session, router]);
+
   // Load leaderboard on mount
   useEffect(() => {
-    setLeaderboard(loadLeaderboard());
+    fetchLeaderboard().then(setLeaderboard);
   }, []);
 
   // Save run on death (once)
   useEffect(() => {
     if (state.phase === "dead" && !deathSaved.current) {
       deathSaved.current = true;
-      const updated = saveRun(state);
-      setLeaderboard(updated);
+      saveRunToApi(state).then(setLeaderboard);
     }
   }, [state.phase, state]);
 
@@ -66,6 +105,16 @@ export function GameScreen() {
   useEffect(() => {
     nameRef.current?.focus();
   }, []);
+
+  // Loading / auth guard
+  if (isPending) {
+    return (
+      <div className="h-dvh flex items-center justify-center stone-bg noise">
+        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-sm">Loading...</p>
+      </div>
+    );
+  }
+  if (!session) return null;
 
   // Keyboard controls
   const handleKey = useCallback(
@@ -118,11 +167,24 @@ export function GameScreen() {
     <div className="h-dvh flex flex-col stone-bg noise overflow-hidden">
       {/* Header bar */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-stone-800/50 shrink-0">
-        <h1 className="font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-stone-500">
-          Crypts of Sui
-        </h1>
-        <div className="font-[family-name:var(--font-mono)] text-xs text-stone-600">
-          Floor {state.floor} · Kills {state.killCount} · Turn {state.turnsElapsed}
+        <div className="flex items-center gap-4">
+          <h1 className="font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-stone-500">
+            Crypts of Sui
+          </h1>
+          <span className="font-[family-name:var(--font-mono)] text-[10px] text-stone-600">
+            {session.user.name}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-600">
+            Floor {state.floor} · Kills {state.killCount} · Turn {state.turnsElapsed}
+          </span>
+          <button
+            onClick={() => signOut().then(() => router.push("/login"))}
+            className="text-stone-700 hover:text-stone-400 font-[family-name:var(--font-mono)] text-[10px] transition"
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
@@ -540,9 +602,10 @@ function Leaderboard({
       </div>
 
       {/* Header */}
-      <div className="grid grid-cols-[1.5rem_1fr_2.5rem_2.5rem_2.5rem] gap-x-2 mb-2 text-[10px] font-[family-name:var(--font-mono)] text-stone-600 uppercase tracking-wider">
+      <div className="grid grid-cols-[1.5rem_1fr_4rem_2.5rem_2.5rem_2.5rem] gap-x-2 mb-2 text-[10px] font-[family-name:var(--font-mono)] text-stone-600 uppercase tracking-wider">
         <span>#</span>
         <span>Hero</span>
+        <span>Player</span>
         <span className="text-right">Flr</span>
         <span className="text-right">Lvl</span>
         <span className="text-right">Kills</span>
@@ -550,7 +613,7 @@ function Leaderboard({
 
       <div className="space-y-1">
         {entries.slice(0, 10).map((entry, i) => {
-          const isHighlighted = highlightHero && entry.heroName === highlightHero;
+          const isHighlighted = highlightHero && entry.hero_name === highlightHero;
           const rankColors = [
             "text-gold-bright", // 1st
             "text-stone-300",   // 2nd
@@ -560,14 +623,17 @@ function Leaderboard({
 
           return (
             <div
-              key={`${entry.heroName}-${entry.date}`}
-              className={`grid grid-cols-[1.5rem_1fr_2.5rem_2.5rem_2.5rem] gap-x-2 text-xs font-[family-name:var(--font-mono)] ${
+              key={`${entry.hero_name}-${entry.created_at}`}
+              className={`grid grid-cols-[1.5rem_1fr_4rem_2.5rem_2.5rem_2.5rem] gap-x-2 text-xs font-[family-name:var(--font-mono)] ${
                 isHighlighted ? "text-gold" : ""
               }`}
             >
               <span className={rankColor}>{i + 1}</span>
               <span className={`truncate ${isHighlighted ? "text-gold" : "text-stone-300"}`}>
-                {entry.heroName}
+                {entry.hero_name}
+              </span>
+              <span className="truncate text-stone-600">
+                {entry.player_name}
               </span>
               <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
                 {entry.floor}

@@ -116,13 +116,14 @@ export interface GameState {
 
 // ─── Leaderboard ───
 export interface LeaderboardEntry {
-  heroName: string;
+  hero_name: string;
+  player_name: string;
   level: number;
   floor: number;
   kills: number;
   turns: number;
-  causeOfDeath: string;
-  date: string; // ISO string
+  cause_of_death: string;
+  created_at: string;
 }
 
 // ─── Actions ───

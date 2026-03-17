@@ -1,7 +1,5 @@
-"use client";
-
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 import Link from "next/link";
+import { AuthButtons } from "@/components/AuthButtons";
 
 // Simulated activity feed — will be real once contracts are deployed
 const DEATH_FEED = [
@@ -29,8 +27,6 @@ const RARITY_COLORS: Record<string, string> = {
 };
 
 export default function Home() {
-  const account = useCurrentAccount();
-
   return (
     <div className="min-h-dvh stone-bg noise">
       {/* ─── Minimal header ─── */}
@@ -38,9 +34,7 @@ export default function Home() {
         <div className="font-[family-name:var(--font-display)] text-xs tracking-[0.3em] text-stone-600 uppercase">
           Crypts of Sui
         </div>
-        <Link href="/game" className="cta-btn text-xs py-2 px-4">
-          Play
-        </Link>
+        <AuthButtons variant="header" />
       </header>
 
       {/* ─── Hero section ─── */}
@@ -217,12 +211,10 @@ export default function Home() {
           Ready to Descend?
         </h2>
         <p className="text-stone-500 text-lg mb-8 max-w-md mx-auto font-[family-name:var(--font-body)]">
-          No wallet needed to explore. Connect when you&rsquo;re ready to play.
+          Create an account and begin your descent. No wallet required.
         </p>
-        <div className="flex justify-center">
-          <Link href="/game" className="cta-btn">
-            Enter the Crypts
-          </Link>
+        <div className="flex justify-center gap-4">
+          <AuthButtons variant="cta" />
         </div>
       </section>
 

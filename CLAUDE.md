@@ -4,7 +4,7 @@ On-chain roguelike dungeon crawler built on Sui blockchain.
 
 ## Project Overview
 
-- **Stack**: Next.js 16 (App Router, TypeScript, Turbopack), Tailwind v4, @mysten/sui, @mysten/dapp-kit
+- **Stack**: Next.js 16 (App Router, TypeScript, Turbopack), Tailwind v4, Better Auth, Vercel Postgres, @mysten/sui, @mysten/dapp-kit
 - **Package manager**: pnpm
 - **Deployment**: Vercel (https://sui-roguelike.vercel.app)
 - **Repo**: https://github.com/TallblokeUK/Sui-Roguelike
@@ -25,7 +25,23 @@ Players don't pay gas. A server-side sponsor keypair signs as gas payer for ever
 - `src/providers/` — Wallet/query providers
 - `scripts/` — Tooling (keypair generation)
 
+### Authentication
+Users register with email + password. Better Auth handles sessions, password hashing, and reset flows.
+- `src/lib/auth.ts` — Better Auth server config (Postgres + Resend)
+- `src/lib/auth-client.ts` — Client-side auth hooks (`useSession`, `signIn`, `signUp`, `signOut`)
+- `src/app/api/auth/[...all]/route.ts` — Catch-all auth API route
+- Auth pages: `/login`, `/register`, `/forgot-password`, `/reset-password`
+
+### Leaderboard
+Server-side leaderboard stored in Postgres `runs` table.
+- `src/app/api/leaderboard/route.ts` — GET (top 20 runs) / POST (save run, requires auth)
+- `scripts/migrate.ts` — Creates `runs` table (run with `npx tsx scripts/migrate.ts`)
+
 ### Environment Variables
+- `POSTGRES_URL` — Vercel Postgres connection string (auto-injected by Vercel)
+- `BETTER_AUTH_SECRET` — Random secret string for auth sessions
+- `RESEND_API_KEY` — Resend API key for password reset emails
+- `EMAIL_FROM` — Sender email for password resets (optional, defaults to noreply@cryptsofsui.com)
 - `SPONSOR_SECRET_KEY` — Sui Ed25519 private key for gas sponsorship (set in `.env.local` and Vercel)
 
 ## Game Design (Planned)
@@ -40,10 +56,12 @@ Players don't pay gas. A server-side sponsor keypair signs as gas payer for ever
 ## Commands
 
 ```bash
-pnpm dev          # Local dev server
-pnpm build        # Production build
-pnpm lint         # Lint
-npx vercel --prod # Deploy to production
+pnpm dev                    # Local dev server
+pnpm build                  # Production build
+pnpm lint                   # Lint
+npx auth migrate            # Run Better Auth DB migrations (creates user/session/account/verification tables)
+npx tsx scripts/migrate.ts  # Run custom DB migrations (creates runs table)
+npx vercel --prod           # Deploy to production
 ```
 
 ## Sponsor Wallet

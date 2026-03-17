@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Cinzel, Cormorant_Garamond, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { WalletProvider } from "@/providers/WalletProvider";
 
 const cinzel = Cinzel({
   subsets: ["latin"],
@@ -37,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cinzel.variable} ${cormorant.variable} ${jetbrains.variable}`}>
       <body className="antialiased">
-        <WalletProvider>{children}</WalletProvider>
+        {children}
       </body>
     </html>
   );

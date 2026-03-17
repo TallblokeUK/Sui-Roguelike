@@ -1,8 +1,11 @@
-import { GameScreen } from "@/components/game/GameScreen";
+"use client";
 
-export const metadata = {
-  title: "Crypts of Sui — Descend",
-};
+import dynamic from "next/dynamic";
+
+const GameScreen = dynamic(
+  () => import("@/components/game/GameScreen").then((m) => m.GameScreen),
+  { ssr: false }
+);
 
 export default function GamePage() {
   return <GameScreen />;
