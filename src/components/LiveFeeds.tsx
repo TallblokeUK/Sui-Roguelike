@@ -65,24 +65,24 @@ export function LiveFeeds() {
                 </h3>
               </div>
               {stats.recentDeaths.length === 0 ? (
-                <p className="text-stone-700 text-sm font-[family-name:var(--font-mono)]">
+                <p className="text-stone-500 text-sm font-[family-name:var(--font-mono)]">
                   No deaths yet. Be the first to fall.
                 </p>
               ) : (
                 <div className="space-y-3">
                   {stats.recentDeaths.map((d, i) => (
                     <div key={i} className="feed-item flex items-start gap-3" style={{ animationDelay: `${i * 0.08}s` }}>
-                      <span className="text-stone-700 font-[family-name:var(--font-mono)] text-xs mt-0.5 shrink-0">
+                      <span className="text-stone-500 font-[family-name:var(--font-mono)] text-xs mt-0.5 w-6 shrink-0 text-right">
                         F{d.floor}
                       </span>
-                      <div className="min-w-0">
-                        <div className="text-stone-300 text-sm font-medium truncate">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-stone-200 text-sm font-medium truncate">
                           {d.hero}
-                          <span className="text-stone-600 text-xs ml-2">Lv.{d.level}</span>
+                          <span className="text-stone-500 text-xs ml-2">Lv.{d.level}</span>
                         </div>
-                        <div className="text-stone-600 text-xs truncate">{d.cause}</div>
+                        <div className="text-stone-500 text-xs truncate">{d.cause}</div>
                       </div>
-                      <span className="text-stone-700 text-xs ml-auto shrink-0">{d.time}</span>
+                      <span className="text-stone-500 text-xs shrink-0">{d.time}</span>
                     </div>
                   ))}
                 </div>
@@ -98,23 +98,23 @@ export function LiveFeeds() {
                 </h3>
               </div>
               {stats.recentLoot.length === 0 ? (
-                <p className="text-stone-700 text-sm font-[family-name:var(--font-mono)]">
+                <p className="text-stone-500 text-sm font-[family-name:var(--font-mono)]">
                   No loot found yet. The crypts await.
                 </p>
               ) : (
                 <div className="space-y-3">
                   {stats.recentLoot.map((l, i) => (
                     <div key={i} className="feed-item flex items-start gap-3" style={{ animationDelay: `${i * 0.08}s` }}>
-                      <span className="text-stone-700 font-[family-name:var(--font-mono)] text-xs mt-0.5 shrink-0">
+                      <span className="text-stone-500 font-[family-name:var(--font-mono)] text-xs mt-0.5 w-6 shrink-0 text-right">
                         F{l.floor}
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className={`text-sm font-medium truncate ${RARITY_COLORS[l.rarity]}`}>
                           {l.item}
                         </div>
-                        <div className="text-stone-600 text-xs">found by {l.hero}</div>
+                        <div className="text-stone-500 text-xs">found by {l.hero}</div>
                       </div>
-                      <span className="text-stone-700 text-xs ml-auto shrink-0 capitalize">{l.rarity}</span>
+                      <span className="text-stone-500 text-xs shrink-0 capitalize">{l.rarity}</span>
                     </div>
                   ))}
                 </div>
@@ -133,7 +133,7 @@ function HeroStat({ value, label }: { value: string; label: string }) {
       <div className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl text-stone-300 tracking-wide">
         {value}
       </div>
-      <div className="text-stone-600 text-xs tracking-[0.15em] uppercase mt-1">{label}</div>
+      <div className="text-stone-500 text-xs tracking-[0.15em] uppercase mt-1">{label}</div>
     </div>
   );
 }

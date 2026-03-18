@@ -24,6 +24,9 @@
   --color-torch: #e87b35;
   --color-ice: #67e8f9;
   --color-parchment: #c4b18a;
+  --color-mythic: #f97316;
+  --color-ancient: #ef4444;
+  --color-divine: #f0f0ff;
 }
 
 * {
@@ -154,7 +157,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  color: var(--color-stone-700);
+  color: var(--color-stone-500);
 }
 .rune-divider::before,
 .rune-divider::after {
@@ -224,6 +227,111 @@ body {
 }
 .damage-flash {
   animation: damageFlash 0.4s ease-out;
+}
+
+/* ─── Critical hit flash ─── */
+@keyframes critFlash {
+  0% { background-color: rgba(212, 164, 71, 0.4); }
+  100% { background-color: transparent; }
+}
+.crit-flash {
+  animation: critFlash 0.5s ease-out;
+}
+
+/* ─── Status effect pulses on monsters ─── */
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.status-poison {
+  animation: statusPulse 1.5s ease-in-out infinite;
+  text-shadow: 0 0 4px rgba(34, 197, 94, 0.6);
+}
+.status-bleed {
+  animation: statusPulse 1s ease-in-out infinite;
+  text-shadow: 0 0 4px rgba(220, 38, 38, 0.6);
+}
+.status-stun {
+  animation: statusPulse 0.8s ease-in-out infinite;
+  text-shadow: 0 0 4px rgba(251, 191, 36, 0.6);
+}
+.status-burning {
+  animation: statusPulse 0.6s ease-in-out infinite;
+  text-shadow: 0 0 6px rgba(249, 115, 22, 0.7);
+}
+
+/* ─── Shrine glow ─── */
+.shrine-glow {
+  animation: statusPulse 2s ease-in-out infinite;
+  text-shadow: 0 0 8px rgba(212, 164, 71, 0.6);
+}
+
+/* ─── Monster death animation ─── */
+@keyframes monsterDeath {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); color: var(--color-blood); }
+  100% { opacity: 0; transform: scale(0.3); }
+}
+.monster-death {
+  animation: monsterDeath 0.4s ease-out forwards;
+}
+
+/* ─── Level-up burst ─── */
+@keyframes levelBurst {
+  0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
+  50% { box-shadow: 0 0 40px 10px rgba(251, 191, 36, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+.level-burst {
+  animation: levelBurst 0.8s ease-out;
+}
+
+/* ─── Boss entrance screen shake ─── */
+@keyframes screenShake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-3px, 2px); }
+  20% { transform: translate(3px, -2px); }
+  30% { transform: translate(-2px, 3px); }
+  40% { transform: translate(2px, -1px); }
+  50% { transform: translate(-1px, 2px); }
+  60% { transform: translate(2px, -2px); }
+  70% { transform: translate(-3px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  90% { transform: translate(-1px, 2px); }
+}
+.screen-shake {
+  animation: screenShake 0.5s ease-out;
+}
+
+/* ─── XP bar ─── */
+.xp-bar {
+  background: var(--color-stone-800);
+  border-radius: 2px;
+  overflow: hidden;
+  height: 6px;
+}
+.xp-bar-fill {
+  background: linear-gradient(90deg, var(--color-gold-dim), var(--color-gold));
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+/* ─── Divine item glow ─── */
+@keyframes divineGlow {
+  0%, 100% { text-shadow: 0 0 6px rgba(240, 240, 255, 0.6); }
+  50% { text-shadow: 0 0 12px rgba(240, 240, 255, 0.9), 0 0 20px rgba(200, 200, 255, 0.3); }
+}
+.text-divine {
+  color: var(--color-divine);
+  animation: divineGlow 2s ease-in-out infinite;
+}
+.text-mythic {
+  color: var(--color-mythic);
+  text-shadow: 0 0 4px rgba(249, 115, 22, 0.4);
+}
+.text-ancient {
+  color: var(--color-ancient);
+  text-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
 }
 
 /* ─── Dungeon grid ─── */

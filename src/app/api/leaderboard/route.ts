@@ -64,6 +64,14 @@ export async function POST(req: NextRequest) {
       ],
     );
 
+    // Migrate any old records from this player that used zkLogin address as user_id
+    if (sub && playerAddress) {
+      await pool.query(
+        `UPDATE runs SET user_id = $1 WHERE user_id = $2`,
+        [sub, playerAddress],
+      ).catch(() => {});
+    }
+
     // 2. Record death on-chain via record_death (sponsor-signed, always reliable)
     const digest = await recordDeathOnChain(heroName, level, floor, kills, turns, causeOfDeath || "Unknown", playerAddress || "0x0");
 

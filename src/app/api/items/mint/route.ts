@@ -9,17 +9,28 @@ export const maxDuration = 15;
 // Map ItemType string to u8
 const ITEM_TYPE_MAP: Record<string, number> = {
   weapon: 0,
-  armor: 1,
-  potion: 2,
-  ring: 3,
+  helmet: 1,
+  chest: 2,
+  legs: 3,
+  boots: 4,
+  gloves: 5,
+  ring: 6,
+  amulet: 7,
+  bracelet: 8,
+  potion: 9,
+  scroll: 10,
 };
 
 // Map ItemRarity string to u8
 const RARITY_MAP: Record<string, number> = {
   common: 0,
-  rare: 1,
-  epic: 2,
-  legendary: 3,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+  mythic: 5,
+  ancient: 6,
+  divine: 7,
 };
 
 /**

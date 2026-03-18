@@ -99,7 +99,7 @@ export function deserializeKeypair(secret: string): Ed25519Keypair {
 export async function generateAuthParams() {
   const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
   const { epoch } = await suiClient.getLatestSuiSystemState();
-  const maxEpoch = Number(epoch) + 2;
+  const maxEpoch = Number(epoch) + 10;
   const ephemeralKeyPair = new Ed25519Keypair();
   const randomness = generateRandomness();
   const nonce = generateNonce(

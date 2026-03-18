@@ -6,7 +6,7 @@ export default function Home() {
     <div className="min-h-dvh stone-bg noise">
       {/* ─── Minimal header ─── */}
       <header className="fixed top-0 inset-x-0 z-40 flex items-center justify-between px-6 py-4">
-        <div className="font-[family-name:var(--font-display)] text-xs tracking-[0.3em] text-stone-600 uppercase">
+        <div className="font-[family-name:var(--font-display)] text-xs tracking-[0.3em] text-stone-400 uppercase">
           Crypts of Sui
         </div>
         <AuthButtons variant="header" />
@@ -31,11 +31,11 @@ export default function Home() {
             Crypts of Sui
           </h1>
 
-          <p className="font-[family-name:var(--font-body)] text-xl sm:text-2xl text-stone-500 font-light tracking-wide mt-4 mb-2">
+          <p className="font-[family-name:var(--font-body)] text-xl sm:text-2xl text-stone-400 font-light tracking-wide mt-4 mb-2">
             A fully on-chain roguelike
           </p>
 
-          <div className="glyph mt-6">&#x2014; &nbsp; descent awaits &nbsp; &#x2014;</div>
+          <div className="glyph mt-6 text-stone-500">&#x2014; &nbsp; descent awaits &nbsp; &#x2014;</div>
         </div>
 
         {/* Stats row — filled by LiveFeeds client component */}
@@ -84,7 +84,7 @@ export default function Home() {
           Built Different
         </div>
 
-        <div className="space-y-8 text-lg text-stone-500 font-[family-name:var(--font-body)] leading-relaxed">
+        <div className="space-y-8 text-lg text-stone-400 font-[family-name:var(--font-body)] leading-relaxed">
           <p>
             Every hero, every sword, every potion exists as a <span className="text-stone-300">real object on the Sui blockchain</span>.
             Not a database entry. Not a server variable. A verifiable, ownable, tradeable thing.
@@ -118,7 +118,7 @@ export default function Home() {
         <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-4xl text-stone-200 tracking-wide mb-4">
           Ready to Descend?
         </h2>
-        <p className="text-stone-500 text-lg mb-8 max-w-md mx-auto font-[family-name:var(--font-body)]">
+        <p className="text-stone-400 text-lg mb-8 max-w-md mx-auto font-[family-name:var(--font-body)]">
           Sign in with Google and begin your descent. No wallet required.
         </p>
         <div className="flex justify-center gap-4">
@@ -129,7 +129,7 @@ export default function Home() {
       {/* ─── Footer ─── */}
       <footer className="border-t border-stone-800/30 px-6 py-8 text-center">
         <div className="glyph mb-3">&#x2726; &middot; &#x2726;</div>
-        <p className="text-stone-700 text-xs tracking-wider">
+        <p className="text-stone-500 text-xs tracking-wider">
           Built on Sui Testnet &middot; Every action is on-chain &middot; Open source
         </p>
       </footer>
@@ -140,13 +140,13 @@ export default function Home() {
 function StepCard({ step, title, desc, delay }: { step: string; title: string; desc: string; delay: number }) {
   return (
     <div className="card fade-up" style={{ animationDelay: `${delay}s` }}>
-      <div className="font-[family-name:var(--font-display)] text-gold/40 text-xs tracking-[0.3em] mb-3">
+      <div className="font-[family-name:var(--font-display)] text-gold/60 text-xs tracking-[0.3em] mb-3">
         {step}
       </div>
       <h3 className="font-[family-name:var(--font-display)] text-lg text-stone-200 tracking-wide mb-3">
         {title}
       </h3>
-      <p className="text-stone-500 text-sm leading-relaxed font-[family-name:var(--font-body)]">
+      <p className="text-stone-400 text-sm leading-relaxed font-[family-name:var(--font-body)]">
         {desc}
       </p>
     </div>
@@ -155,7 +155,7 @@ function StepCard({ step, title, desc, delay }: { step: string; title: string; d
 
 function TechBadge({ label }: { label: string }) {
   return (
-    <span className="px-3 py-1 border border-stone-800 text-stone-500 text-xs tracking-wider font-[family-name:var(--font-mono)]">
+    <span className="px-3 py-1 border border-stone-700 text-stone-400 text-xs tracking-wider font-[family-name:var(--font-mono)]">
       {label}
     </span>
   );

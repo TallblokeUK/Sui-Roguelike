@@ -28,10 +28,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check name uniqueness: another player (different Google account) can't use the same name
+    // Migrate old records that used zkLogin address as user_id to Google sub
+    if (sub) {
+      await pool.query(
+        `UPDATE runs SET user_id = $1 WHERE user_id = $2`,
+        [sub, sender],
+      ).catch(() => {});
+    }
+
+    // Check name uniqueness: another player (different Google account) can't use the same name.
+    // Only check against records with a real Google sub (not legacy/test/address user_ids).
     if (sub) {
       const { rows } = await pool.query(
-        `SELECT 1 FROM runs WHERE hero_name = $1 AND user_id != $2 LIMIT 1`,
+        `SELECT 1 FROM runs WHERE hero_name = $1 AND user_id != $2 AND user_id NOT LIKE '0x%' AND user_id NOT IN ('legacy', 'test', 'unknown') LIMIT 1`,
         [name, sub],
       );
       if (rows.length > 0) {

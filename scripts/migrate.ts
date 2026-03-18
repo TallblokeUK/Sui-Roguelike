@@ -39,6 +39,26 @@ async function migrate() {
     ALTER TABLE runs ADD COLUMN IF NOT EXISTS player_name TEXT NOT NULL DEFAULT 'Adventurer';
   `);
 
+  // Saves table for run persistence
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS saves (
+      sub TEXT PRIMARY KEY,
+      state JSONB NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
+
+  // Account progression (meta-progression / Dark Forge)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS account_progression (
+      sub TEXT PRIMARY KEY,
+      soul_embers INTEGER NOT NULL DEFAULT 0,
+      total_embers_earned INTEGER NOT NULL DEFAULT 0,
+      upgrades JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
+
   console.log("Migrations complete.");
   await pool.end();
 }
