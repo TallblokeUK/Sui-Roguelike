@@ -137,6 +137,7 @@ export type GameAction =
   | { type: "EQUIP_ITEM"; itemId: string }
   | { type: "DROP_ITEM"; itemId: string }
   | { type: "WAIT" }
+  | { type: "ABANDON" }
   | { type: "RESET" };
 
 // ─── Constants ───

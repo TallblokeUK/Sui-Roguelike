@@ -217,6 +217,15 @@ body {
   letter-spacing: 0.3em;
 }
 
+/* ─── Damage flash ─── */
+@keyframes damageFlash {
+  0% { background-color: rgba(220, 38, 38, 0.3); }
+  100% { background-color: transparent; }
+}
+.damage-flash {
+  animation: damageFlash 0.4s ease-out;
+}
+
 /* ─── Dungeon grid ─── */
 .dungeon-grid {
   background: var(--color-stone-950);

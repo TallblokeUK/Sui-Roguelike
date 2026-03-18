@@ -119,7 +119,7 @@ export default function Home() {
           Ready to Descend?
         </h2>
         <p className="text-stone-500 text-lg mb-8 max-w-md mx-auto font-[family-name:var(--font-body)]">
-          Create an account and begin your descent. No wallet required.
+          Sign in with Google and begin your descent. No wallet required.
         </p>
         <div className="flex justify-center gap-4">
           <AuthButtons variant="cta" />

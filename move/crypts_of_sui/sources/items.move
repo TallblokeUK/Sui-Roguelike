@@ -35,7 +35,8 @@ public struct ItemMint has copy, drop {
 
 // ─── Entry functions ───
 
-/// Mint an item and transfer to sender.
+/// Mint an item and transfer to the specified recipient.
+/// The sponsor calls this but the item is owned by the player.
 public entry fun mint_item(
     name: String,
     item_type: u8,
@@ -45,6 +46,7 @@ public entry fun mint_item(
     description: String,
     hero_name: String,
     floor: u64,
+    recipient: address,
     ctx: &mut TxContext,
 ) {
     let item = Item {
@@ -57,7 +59,6 @@ public entry fun mint_item(
         description,
     };
     let item_id = object::uid_to_address(&item.id);
-    let owner = ctx.sender();
 
     event::emit(ItemMint {
         item_id,
@@ -66,8 +67,8 @@ public entry fun mint_item(
         rarity,
         hero_name,
         floor,
-        owner,
+        owner: recipient,
     });
 
-    transfer::transfer(item, owner);
+    transfer::public_transfer(item, recipient);
 }

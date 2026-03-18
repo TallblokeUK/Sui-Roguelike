@@ -37,9 +37,11 @@ public struct HeroDeath has copy, drop {
 
 // ─── Entry functions ───
 
-/// Mint a new hero and transfer to sender.
+/// Mint a new hero and transfer to the specified recipient.
+/// The sponsor calls this but the hero is owned by the player.
 public entry fun mint_hero(
     name: String,
+    recipient: address,
     ctx: &mut TxContext,
 ) {
     let hero = Hero {
@@ -47,18 +49,18 @@ public entry fun mint_hero(
         name,
     };
     let hero_id = object::uid_to_address(&hero.id);
-    let owner = ctx.sender();
 
     event::emit(HeroMint {
         hero_id,
         name: hero.name,
-        owner,
+        owner: recipient,
     });
 
-    transfer::transfer(hero, owner);
+    transfer::public_transfer(hero, recipient);
 }
 
 /// Burn a hero on death. Consumes the object and emits a death event.
+/// Must be called by the hero's owner (the player via zkLogin).
 public entry fun burn_hero(
     hero: Hero,
     level: u64,
@@ -84,4 +86,28 @@ public entry fun burn_hero(
     });
 
     object::delete(id);
+}
+
+/// Record a hero's death on-chain without requiring the hero object.
+/// Called server-side by the sponsor for reliable event emission.
+/// The hero object remains (best-effort burn happens separately via zkLogin).
+public entry fun record_death(
+    hero_name: String,
+    level: u64,
+    floor: u64,
+    kills: u64,
+    turns: u64,
+    cause_of_death: String,
+    player: address,
+) {
+    event::emit(HeroDeath {
+        hero_id: @0x0,
+        name: hero_name,
+        level,
+        floor,
+        kills,
+        turns,
+        cause_of_death,
+        owner: player,
+    });
 }

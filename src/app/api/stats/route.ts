@@ -32,7 +32,9 @@ const RARITY_NAMES = ["common", "rare", "epic", "legendary"];
 
 /**
  * GET /api/stats
- * Returns aggregated on-chain stats for the landing page.
+ * All data from on-chain events:
+ * - Deaths from HeroDeath events (emitted by record_death, called server-side)
+ * - Items from ItemMint events (emitted by mint_item, called server-side)
  */
 export async function GET() {
   try {
@@ -51,19 +53,19 @@ export async function GET() {
       });
     }
 
-    // Query recent death events
-    const deathEvents = await client.queryEvents({
-      query: { MoveEventType: `${PACKAGE_ID}::hero::HeroDeath` },
-      order: "descending",
-      limit: 50,
-    });
-
-    // Query recent item mint events
-    const itemEvents = await client.queryEvents({
-      query: { MoveEventType: `${PACKAGE_ID}::items::ItemMint` },
-      order: "descending",
-      limit: 50,
-    });
+    // Query on-chain events in parallel
+    const [deathEvents, itemEvents] = await Promise.all([
+      client.queryEvents({
+        query: { MoveEventType: `${PACKAGE_ID}::hero::HeroDeath` },
+        order: "descending",
+        limit: 50,
+      }),
+      client.queryEvents({
+        query: { MoveEventType: `${PACKAGE_ID}::items::ItemMint` },
+        order: "descending",
+        limit: 50,
+      }),
+    ]);
 
     // Aggregate stats
     const heroesLost = deathEvents.data.length;

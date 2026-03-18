@@ -14,8 +14,8 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
   {
     name: "Crypt Rat",
     glyph: "r",
-    hp: 5,
-    atk: 2,
+    hp: 8,
+    atk: 3,
     def: 0,
     xpReward: 3,
     color: "text-stone-400",
@@ -24,8 +24,8 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
   {
     name: "Skeleton",
     glyph: "s",
-    hp: 8,
-    atk: 3,
+    hp: 12,
+    atk: 4,
     def: 1,
     xpReward: 5,
     color: "text-stone-300",
@@ -34,8 +34,8 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
   {
     name: "Crypt Spider",
     glyph: "S",
-    hp: 6,
-    atk: 4,
+    hp: 10,
+    atk: 5,
     def: 0,
     xpReward: 6,
     color: "text-mana",

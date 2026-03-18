@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSession } from "@/lib/auth-client";
+import { useZkLogin } from "@/lib/zklogin-context";
 
 export function AuthButtons({ variant }: { variant: "header" | "cta" }) {
   const [mounted, setMounted] = useState(false);
@@ -17,9 +17,9 @@ export function AuthButtons({ variant }: { variant: "header" | "cta" }) {
 }
 
 function AuthButtonsInner({ variant }: { variant: "header" | "cta" }) {
-  const { data: session, isPending } = useSession();
+  const { session, loading } = useZkLogin();
 
-  if (isPending) return null;
+  if (loading) return null;
 
   if (variant === "header") {
     return session ? (
@@ -39,13 +39,8 @@ function AuthButtonsInner({ variant }: { variant: "header" | "cta" }) {
       Enter the Crypts
     </Link>
   ) : (
-    <>
-      <Link href="/register" className="cta-btn">
-        Create Account
-      </Link>
-      <Link href="/login" className="cta-btn" style={{ opacity: 0.6 }}>
-        Sign In
-      </Link>
-    </>
+    <Link href="/login" className="cta-btn">
+      Sign in with Google
+    </Link>
   );
 }

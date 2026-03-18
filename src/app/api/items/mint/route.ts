@@ -3,8 +3,6 @@ import { Transaction } from "@mysten/sui/transactions";
 import client from "@/lib/sui-client";
 import { getSponsorKeypair } from "@/lib/sponsor";
 import { itemTarget } from "@/lib/contracts";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 
 export const maxDuration = 15;
 
@@ -27,20 +25,29 @@ const RARITY_MAP: Record<string, number> = {
 /**
  * POST /api/items/mint
  * Mint an Item object on Sui when a player picks up loot.
- * Body: { name, itemType, rarity, value, glyph, description, heroName, floor }
+ * The item is transferred to the player's zkLogin address.
+ *
+ * Body: { name, itemType, rarity, value, glyph, description, heroName, floor, sender }
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const {
+      name,
+      itemType,
+      rarity,
+      value,
+      glyph,
+      description,
+      heroName,
+      floor,
+      sender,
+    } = await req.json();
 
-    const { name, itemType, rarity, value, glyph, description, heroName, floor } =
-      await req.json();
-
-    if (!name || !itemType || !heroName) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!name || !itemType || !heroName || !sender) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 },
+      );
     }
 
     const keypair = getSponsorKeypair();
@@ -56,6 +63,7 @@ export async function POST(req: NextRequest) {
         tx.pure.string(description || ""),
         tx.pure.string(heroName),
         tx.pure.u64(floor || 1),
+        tx.pure.address(sender), // recipient = player's zkLogin address
       ],
     });
 
@@ -66,10 +74,11 @@ export async function POST(req: NextRequest) {
     });
 
     const itemObj = result.objectChanges?.find(
-      (c) => c.type === "created" && c.objectType?.includes("::items::Item")
+      (c) => c.type === "created" && c.objectType?.includes("::items::Item"),
     );
 
-    const itemObjectId = itemObj && "objectId" in itemObj ? itemObj.objectId : null;
+    const itemObjectId =
+      itemObj && "objectId" in itemObj ? itemObj.objectId : null;
 
     return NextResponse.json({
       itemObjectId,

@@ -35,15 +35,22 @@ function createHero(name: string, start: Position): Hero {
 export function getHeroAtk(hero: Hero): number {
   let atk = hero.atk;
   if (hero.equipment.weapon) atk += hero.equipment.weapon.value;
-  if (hero.equipment.ring?.name.includes("Strength")) atk += hero.equipment.ring.value;
+  if (hero.equipment.ring?.name.includes("Strength") || hero.equipment.ring?.name.includes("Berserker")) atk += hero.equipment.ring.value;
   return atk;
 }
 
 export function getHeroDef(hero: Hero): number {
   let def = hero.def;
   if (hero.equipment.armor) def += hero.equipment.armor.value;
-  if (hero.equipment.ring?.name.includes("Protection")) def += hero.equipment.ring.value;
+  if (hero.equipment.ring?.name.includes("Protection") || hero.equipment.ring?.name.includes("Sentinel")) def += hero.equipment.ring.value;
   return def;
+}
+
+// ─── Computed max HP (base + equipment) ───
+export function getHeroMaxHp(hero: Hero): number {
+  let maxHp = hero.maxHp;
+  if (hero.equipment.ring?.name.includes("Vitality") || hero.equipment.ring?.name.includes("Regeneration")) maxHp += hero.equipment.ring.value;
+  return maxHp;
 }
 
 // ─── Create initial game state ───
@@ -90,24 +97,31 @@ function calcDamage(atk: number, def: number): number {
   return dmg;
 }
 
-// ─── Monster AI: move toward player if visible ───
+// ─── Monster AI: move toward player if visible, always aggressive ───
 function moveMonsters(state: GameState): GameState {
   let { hero, monsters, map, log } = state;
   const newMonsters = [...monsters];
   const newLog = [...log];
   let newHero = { ...hero };
 
+  const canMoveTo = (x: number, y: number, skipIdx: number) =>
+    x >= 0 && x < MAP_WIDTH &&
+    y >= 0 && y < MAP_HEIGHT &&
+    isWalkable(map[y][x]) &&
+    !(x === hero.pos.x && y === hero.pos.y) &&
+    !newMonsters.some((other, j) => j !== skipIdx && other.pos.x === x && other.pos.y === y);
+
   for (let i = 0; i < newMonsters.length; i++) {
     const mon = { ...newMonsters[i] };
     const tile = map[mon.pos.y]?.[mon.pos.x];
-    if (!tile?.visible) continue; // only move if player can see them
+    if (!tile?.visible) continue; // only act if player can see them
 
     const dx = hero.pos.x - mon.pos.x;
     const dy = hero.pos.y - mon.pos.y;
     const dist = Math.abs(dx) + Math.abs(dy);
 
     if (dist <= 1) {
-      // Attack player
+      // Attack player — always attack when adjacent
       const heroDef = getHeroDef(newHero);
       const dmg = calcDamage(mon.atk, heroDef);
       newHero = { ...newHero, hp: newHero.hp - dmg };
@@ -115,26 +129,51 @@ function moveMonsters(state: GameState): GameState {
         text: `${mon.name} hits you for ${dmg} damage!`,
         type: "combat",
       });
-    } else if (dist <= 8) {
-      // Move toward player
-      let moveX = mon.pos.x + (dx > 0 ? 1 : dx < 0 ? -1 : 0);
-      let moveY = mon.pos.y + (dy > 0 ? 1 : dy < 0 ? -1 : 0);
+    } else {
+      // Chase player — no range limit, always pursue if visible
+      const stepX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+      const stepY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
 
-      // Prefer axis with greater distance
+      let moved = false;
+
+      // Try preferred axis first (greater distance), fallback to other axis
       if (Math.abs(dx) >= Math.abs(dy)) {
-        moveY = mon.pos.y;
+        // Try horizontal first
+        if (stepX !== 0 && canMoveTo(mon.pos.x + stepX, mon.pos.y, i)) {
+          mon.pos = { x: mon.pos.x + stepX, y: mon.pos.y };
+          moved = true;
+        } else if (stepY !== 0 && canMoveTo(mon.pos.x, mon.pos.y + stepY, i)) {
+          mon.pos = { x: mon.pos.x, y: mon.pos.y + stepY };
+          moved = true;
+        }
       } else {
-        moveX = mon.pos.x;
+        // Try vertical first
+        if (stepY !== 0 && canMoveTo(mon.pos.x, mon.pos.y + stepY, i)) {
+          mon.pos = { x: mon.pos.x, y: mon.pos.y + stepY };
+          moved = true;
+        } else if (stepX !== 0 && canMoveTo(mon.pos.x + stepX, mon.pos.y, i)) {
+          mon.pos = { x: mon.pos.x + stepX, y: mon.pos.y };
+          moved = true;
+        }
       }
 
-      if (
-        moveX >= 0 && moveX < MAP_WIDTH &&
-        moveY >= 0 && moveY < MAP_HEIGHT &&
-        isWalkable(map[moveY][moveX]) &&
-        !(moveX === hero.pos.x && moveY === hero.pos.y) &&
-        !newMonsters.some((other, j) => j !== i && other.pos.x === moveX && other.pos.y === moveY)
-      ) {
-        mon.pos = { x: moveX, y: moveY };
+      // If both primary axes blocked, try diagonal
+      if (!moved && stepX !== 0 && stepY !== 0 && canMoveTo(mon.pos.x + stepX, mon.pos.y + stepY, i)) {
+        mon.pos = { x: mon.pos.x + stepX, y: mon.pos.y + stepY };
+      }
+
+      // Attack immediately after moving adjacent (no free kiting)
+      const newDx = hero.pos.x - mon.pos.x;
+      const newDy = hero.pos.y - mon.pos.y;
+      const newDist = Math.abs(newDx) + Math.abs(newDy);
+      if (newDist <= 1) {
+        const heroDef = getHeroDef(newHero);
+        const dmg = calcDamage(mon.atk, heroDef);
+        newHero = { ...newHero, hp: newHero.hp - dmg };
+        newLog.push({
+          text: `${mon.name} hits you for ${dmg} damage!`,
+          type: "combat",
+        });
       }
     }
 
@@ -154,7 +193,7 @@ function checkLevelUp(state: GameState): GameState {
     hero.xp -= xpNeeded;
     hero.level += 1;
     hero.maxHp += 5;
-    hero.hp = Math.min(hero.hp + 10, hero.maxHp);
+    hero.hp = Math.min(hero.hp + 10, getHeroMaxHp(hero));
     hero.atk += 1;
     hero.def += 1;
     log.push({
@@ -356,7 +395,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const hero = { ...state.hero };
       const oldHp = hero.hp;
-      hero.hp = Math.min(hero.maxHp, hero.hp + item.value);
+      hero.hp = Math.min(getHeroMaxHp(hero), hero.hp + item.value);
       hero.inventory = hero.inventory.filter((i) => i.id !== action.itemId);
       const healed = hero.hp - oldHp;
 
@@ -428,6 +467,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [
           ...state.log,
           { text: `Dropped ${item.name}.`, type: "info" },
+        ],
+      };
+    }
+
+    case "ABANDON": {
+      if (state.phase !== "playing") return state;
+      return {
+        ...state,
+        phase: "dead",
+        causeOfDeath: "Abandoned the crypts",
+        log: [
+          ...state.log,
+          { text: `${state.hero.name} fled the crypts in cowardice.`, type: "death" as const },
         ],
       };
     }

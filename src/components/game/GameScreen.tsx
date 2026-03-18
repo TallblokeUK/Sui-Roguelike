@@ -15,9 +15,17 @@ import {
   createInitialState,
   getHeroAtk,
   getHeroDef,
+  getHeroMaxHp,
 } from "@/lib/game/state";
-import { useSession, signOut } from "@/lib/auth-client";
+import { useZkLogin } from "@/lib/zklogin-context";
 import { useRouter } from "next/navigation";
+import {
+  type ZkLoginSession,
+  deserializeKeypair,
+  createZkLoginSignature,
+} from "@/lib/zklogin";
+import { fromBase64 } from "@mysten/sui/utils";
+import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "text-stone-400",
@@ -45,42 +53,95 @@ async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   }
 }
 
-async function mintHeroOnChain(name: string): Promise<string> {
+async function mintHeroOnChain(
+  name: string,
+  senderAddress: string,
+  sub: string,
+): Promise<string> {
   const res = await fetch("/api/hero/mint", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, sender: senderAddress, sub }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to mint hero" }));
+    const err = await res
+      .json()
+      .catch(() => ({ error: "Failed to mint hero" }));
     throw new Error(err.error || "Failed to mint hero");
   }
   const data = await res.json();
   return data.heroObjectId || "";
 }
 
-async function burnHeroOnChain(state: GameState): Promise<LeaderboardEntry[]> {
+async function burnHeroOnChain(
+  state: GameState,
+  session: ZkLoginSession,
+  onStatus: (status: string) => void,
+): Promise<void> {
   try {
-    await fetch("/api/hero/burn", {
+    onStatus("Building burn transaction...");
+    const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
+
+    // 1. Get sponsored burn transaction from server
+    const burnRes = await fetch("/api/hero/burn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         heroObjectId: state.heroObjectId,
-        heroName: state.hero.name,
         level: state.hero.level,
         floor: state.floor,
         kills: state.killCount,
         turns: state.turnsElapsed,
-        causeOfDeath: state.causeOfDeath,
+        causeOfDeath: state.causeOfDeath || "Unknown",
+        sender: session.address,
       }),
     });
-    return fetchLeaderboard();
-  } catch {
-    return [];
+
+    if (!burnRes.ok) {
+      const err = await burnRes.json().catch(() => ({}));
+      throw new Error(err.error || "Burn sponsorship failed");
+    }
+
+    const { sponsoredTxBytes, sponsorSignature } = await burnRes.json();
+
+    // 2. Sign with ephemeral key
+    onStatus("Signing with zkLogin...");
+    const ephemeralKeyPair = deserializeKeypair(session.ephemeralKeyPairB64);
+    const { signature: userSignature } =
+      await ephemeralKeyPair.signTransaction(fromBase64(sponsoredTxBytes));
+
+    // 3. Create zkLogin signature
+    const zkLoginSig = createZkLoginSignature(session, userSignature);
+
+    // 4. Execute with both signatures
+    onStatus("Burning hero on-chain...");
+    await suiClient.executeTransactionBlock({
+      transactionBlock: sponsoredTxBytes,
+      signature: [zkLoginSig, sponsorSignature],
+      options: { showEffects: true },
+    });
+
+    onStatus("Hero burned on-chain");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Burn error:", msg);
+    onStatus(`Burn failed: ${msg}`);
   }
 }
 
-function mintItemOnChain(item: { name: string; type: string; rarity: string; value: number; glyph: string; description: string }, heroName: string, floor: number) {
+function mintItemOnChain(
+  item: {
+    name: string;
+    type: string;
+    rarity: string;
+    value: number;
+    glyph: string;
+    description: string;
+  },
+  heroName: string,
+  floor: number,
+  senderAddress: string,
+) {
   // Fire-and-forget — don't block gameplay
   fetch("/api/items/mint", {
     method: "POST",
@@ -94,26 +155,30 @@ function mintItemOnChain(item: { name: string; type: string; rarity: string; val
       description: item.description,
       heroName,
       floor,
+      sender: senderAddress,
     }),
   }).catch(() => {}); // silently ignore failures
 }
 
 export function GameScreen() {
-  const { data: session, isPending } = useSession();
+  const { session, loading: authLoading, signOut } = useZkLogin();
   const router = useRouter();
   const [state, dispatch] = useReducer(gameReducer, undefined, createInitialState);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [burnStatus, setBurnStatus] = useState("");
+  const [damageFlash, setDamageFlash] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const deathSaved = useRef(false);
   const prevInventorySize = useRef(0);
+  const prevHp = useRef(state.hero.hp);
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!isPending && !session) {
+    if (!authLoading && !session) {
       router.push("/login");
     }
-  }, [isPending, session, router]);
+  }, [authLoading, session, router]);
 
   // Load leaderboard on mount
   useEffect(() => {
@@ -122,24 +187,59 @@ export function GameScreen() {
 
   // Burn hero on death (once) — on-chain + database
   useEffect(() => {
-    if (state.phase === "dead" && !deathSaved.current) {
+    if (state.phase === "dead" && !deathSaved.current && session) {
       deathSaved.current = true;
-      burnHeroOnChain(state).then(setLeaderboard);
+
+      // 1. Burn on-chain (client-side zkLogin + sponsored)
+      burnHeroOnChain(state, session, setBurnStatus);
+
+      // 2. Save run to leaderboard DB
+      fetch("/api/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heroName: state.hero.name,
+          level: state.hero.level,
+          floor: state.floor,
+          kills: state.killCount,
+          turns: state.turnsElapsed,
+          causeOfDeath: state.causeOfDeath,
+          playerAddress: session.address,
+          playerName: session.name,
+          sub: session.sub,
+        }),
+      })
+        .then(() => fetchLeaderboard())
+        .then(setLeaderboard)
+        .catch(() => {});
     }
-  }, [state.phase, state]);
+  }, [state.phase, state, session]);
 
   // Mint items on-chain when picked up
   useEffect(() => {
     const currentSize = state.hero.inventory.length;
-    if (currentSize > prevInventorySize.current && state.phase === "playing") {
-      // New item was picked up — mint the latest one
+    if (
+      currentSize > prevInventorySize.current &&
+      state.phase === "playing" &&
+      session
+    ) {
       const newItem = state.hero.inventory[currentSize - 1];
       if (newItem) {
-        mintItemOnChain(newItem, state.hero.name, state.floor);
+        mintItemOnChain(newItem, state.hero.name, state.floor, session.address);
       }
     }
     prevInventorySize.current = currentSize;
-  }, [state.hero.inventory.length, state.hero.name, state.floor, state.phase]);
+  }, [state.hero.inventory.length, state.hero.name, state.floor, state.phase, session]);
+
+  // Damage flash when HP drops
+  useEffect(() => {
+    if (state.hero.hp < prevHp.current && state.phase === "playing") {
+      setDamageFlash(true);
+      const timer = setTimeout(() => setDamageFlash(false), 400);
+      return () => clearTimeout(timer);
+    }
+    prevHp.current = state.hero.hp;
+  }, [state.hero.hp, state.phase]);
 
   // Auto-scroll log
   useEffect(() => {
@@ -181,7 +281,7 @@ export function GameScreen() {
         dispatch({ type: "WAIT" });
       }
     },
-    [state.phase]
+    [state.phase],
   );
 
   useEffect(() => {
@@ -190,10 +290,12 @@ export function GameScreen() {
   }, [handleKey]);
 
   // Loading / auth guard
-  if (isPending) {
+  if (authLoading) {
     return (
       <div className="h-dvh flex items-center justify-center stone-bg noise">
-        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-sm">Loading...</p>
+        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-sm">
+          Loading...
+        </p>
       </div>
     );
   }
@@ -201,7 +303,16 @@ export function GameScreen() {
 
   // ─── Naming screen ───
   if (state.phase === "naming") {
-    return <NamingScreen nameRef={nameRef} dispatch={dispatch} leaderboard={leaderboard} floor={state.floor} />;
+    return (
+      <NamingScreen
+        nameRef={nameRef}
+        dispatch={dispatch}
+        leaderboard={leaderboard}
+        floor={state.floor}
+        senderAddress={session.address}
+        sub={session.sub}
+      />
+    );
   }
 
   // ─── Death screen ───
@@ -210,8 +321,10 @@ export function GameScreen() {
       <DeathScreen
         state={state}
         leaderboard={leaderboard}
+        burnStatus={burnStatus}
         onRetry={() => {
           deathSaved.current = false;
+          setBurnStatus("");
           dispatch({ type: "RESET" });
         }}
       />
@@ -220,24 +333,38 @@ export function GameScreen() {
 
   // ─── Game screen ───
   return (
-    <div className="h-dvh flex flex-col stone-bg noise overflow-hidden">
+    <div className={`h-dvh flex flex-col stone-bg noise overflow-hidden ${damageFlash ? "damage-flash" : ""}`}>
       {/* Header bar */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-stone-800/50 shrink-0">
+      <header className="flex items-center justify-between px-4 py-2 border-b border-stone-700/50 shrink-0">
         <div className="flex items-center gap-4">
-          <h1 className="font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-stone-500">
+          <h1 className="font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-stone-300">
             Crypts of Sui
           </h1>
-          <span className="font-[family-name:var(--font-mono)] text-[10px] text-stone-600">
-            {session.user.name}
+          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-400">
+            {session.name}
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-600">
-            Floor {state.floor} · Kills {state.killCount} · Turn {state.turnsElapsed}
+          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-400">
+            Floor {state.floor} · Kills {state.killCount} · Turn{" "}
+            {state.turnsElapsed}
           </span>
           <button
-            onClick={() => signOut().then(() => router.push("/login"))}
-            className="text-stone-700 hover:text-stone-400 font-[family-name:var(--font-mono)] text-[10px] transition"
+            onClick={() => {
+              if (confirm("Abandon this run? Your hero will be lost.")) {
+                dispatch({ type: "ABANDON" });
+              }
+            }}
+            className="text-blood/70 hover:text-blood font-[family-name:var(--font-mono)] text-xs border border-blood/30 hover:border-blood/60 px-2 py-0.5 rounded transition"
+          >
+            End Run
+          </button>
+          <button
+            onClick={() => {
+              signOut();
+              router.push("/login");
+            }}
+            className="text-stone-500 hover:text-stone-300 font-[family-name:var(--font-mono)] text-xs transition"
           >
             Sign Out
           </button>
@@ -274,7 +401,7 @@ export function GameScreen() {
             ))}
           </div>
           <div className="px-4 py-2 border-t border-stone-800/50">
-            <p className="text-stone-700 font-[family-name:var(--font-mono)] text-xs">
+            <p className="text-stone-500 font-[family-name:var(--font-mono)] text-xs">
               WASD/Arrows: Move · G: Grab · &gt;: Descend · Space: Wait
             </p>
           </div>
@@ -303,15 +430,24 @@ function DungeonGrid({ state }: { state: GameState }) {
       {Array.from({ length: MAP_HEIGHT }, (_, y) =>
         Array.from({ length: MAP_WIDTH }, (_, x) => {
           const tile = map[y]?.[x];
-          if (!tile) return <span key={`${x}-${y}`} className="tile tile-hidden">&nbsp;</span>;
+          if (!tile)
+            return (
+              <span key={`${x}-${y}`} className="tile tile-hidden">
+                &nbsp;
+              </span>
+            );
 
-          // Check for entities at this position
           const isPlayer = hero.pos.x === x && hero.pos.y === y;
-          const monster = monsters.find((m) => m.pos.x === x && m.pos.y === y);
+          const monster = monsters.find(
+            (m) => m.pos.x === x && m.pos.y === y,
+          );
 
           if (isPlayer) {
             return (
-              <span key={`${x}-${y}`} className="tile text-gold-bright font-bold">
+              <span
+                key={`${x}-${y}`}
+                className="tile text-gold-bright font-bold"
+              >
                 @
               </span>
             );
@@ -319,14 +455,21 @@ function DungeonGrid({ state }: { state: GameState }) {
 
           if (monster && tile.visible) {
             return (
-              <span key={`${x}-${y}`} className={`tile ${monster.color} font-bold`}>
+              <span
+                key={`${x}-${y}`}
+                className={`tile ${monster.color} font-bold`}
+              >
                 {monster.glyph}
               </span>
             );
           }
 
           if (!tile.revealed) {
-            return <span key={`${x}-${y}`} className="tile tile-hidden">&nbsp;</span>;
+            return (
+              <span key={`${x}-${y}`} className="tile tile-hidden">
+                &nbsp;
+              </span>
+            );
           }
 
           const dimmed = !tile.visible;
@@ -381,9 +524,13 @@ function DungeonGrid({ state }: { state: GameState }) {
                 </span>
               );
             default:
-              return <span key={`${x}-${y}`} className="tile tile-hidden">&nbsp;</span>;
+              return (
+                <span key={`${x}-${y}`} className="tile tile-hidden">
+                  &nbsp;
+                </span>
+              );
           }
-        })
+        }),
       )}
     </div>
   );
@@ -398,11 +545,11 @@ function HeroPanel({
   dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
 }) {
   const { hero } = state;
-  const hpPercent = Math.max(0, (hero.hp / hero.maxHp) * 100);
+  const effectiveMaxHp = getHeroMaxHp(hero);
+  const hpPercent = Math.max(0, (hero.hp / effectiveMaxHp) * 100);
 
   return (
     <>
-      {/* Hero name & level */}
       <div>
         <div className="font-[family-name:var(--font-display)] text-base text-stone-200 tracking-wide">
           {hero.name}
@@ -412,12 +559,11 @@ function HeroPanel({
         </div>
       </div>
 
-      {/* HP bar */}
       <div>
         <div className="flex justify-between text-xs font-[family-name:var(--font-mono)] text-stone-500 mb-1">
           <span>HP</span>
           <span className={hpPercent < 30 ? "text-blood" : "text-stone-400"}>
-            {hero.hp}/{hero.maxHp}
+            {hero.hp}/{effectiveMaxHp}
           </span>
         </div>
         <div className="health-bar">
@@ -428,7 +574,6 @@ function HeroPanel({
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-2 text-xs font-[family-name:var(--font-mono)]">
         <div className="text-stone-500">
           ATK <span className="text-torch">{getHeroAtk(hero)}</span>
@@ -438,7 +583,6 @@ function HeroPanel({
         </div>
       </div>
 
-      {/* Equipment */}
       <div>
         <div className="font-[family-name:var(--font-display)] text-xs text-stone-500 tracking-wider uppercase mb-1">
           Equipment
@@ -450,13 +594,14 @@ function HeroPanel({
         </div>
       </div>
 
-      {/* Inventory */}
       <div>
         <div className="font-[family-name:var(--font-display)] text-xs text-stone-500 tracking-wider uppercase mb-1">
           Inventory ({hero.inventory.length}/10)
         </div>
         {hero.inventory.length === 0 ? (
-          <p className="text-stone-700 text-xs font-[family-name:var(--font-mono)]">Empty</p>
+          <p className="text-stone-700 text-xs font-[family-name:var(--font-mono)]">
+            Empty
+          </p>
         ) : (
           <div className="space-y-1">
             {hero.inventory.map((item) => (
@@ -476,7 +621,7 @@ function EquipSlot({ label, item }: { label: string; item: Item | null }) {
       {item ? (
         <span className={RARITY_COLORS[item.rarity]}>{item.name}</span>
       ) : (
-        <span className="text-stone-800">—</span>
+        <span className="text-stone-800">&mdash;</span>
       )}
     </div>
   );
@@ -492,7 +637,9 @@ function InventoryItem({
   return (
     <div className="flex items-center gap-1.5 group text-xs font-[family-name:var(--font-mono)]">
       <span className={RARITY_COLORS[item.rarity]}>{item.glyph}</span>
-      <span className={`flex-1 truncate ${RARITY_COLORS[item.rarity]}`}>{item.name}</span>
+      <span className={`flex-1 truncate ${RARITY_COLORS[item.rarity]}`}>
+        {item.name}
+      </span>
       <span className="flex gap-1.5 opacity-0 group-hover:opacity-100">
         {item.type === "potion" ? (
           <button
@@ -503,7 +650,9 @@ function InventoryItem({
           </button>
         ) : (
           <button
-            onClick={() => dispatch({ type: "EQUIP_ITEM", itemId: item.id })}
+            onClick={() =>
+              dispatch({ type: "EQUIP_ITEM", itemId: item.id })
+            }
             className="text-gold hover:underline"
           >
             eqp
@@ -525,11 +674,15 @@ function NamingScreen({
   nameRef,
   dispatch,
   leaderboard,
+  senderAddress,
+  sub,
 }: {
   nameRef: React.RefObject<HTMLInputElement | null>;
   dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
   leaderboard: LeaderboardEntry[];
   floor: number;
+  senderAddress: string;
+  sub: string;
 }) {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState("");
@@ -541,10 +694,12 @@ function NamingScreen({
     setMinting(true);
     setError("");
     try {
-      const heroObjectId = await mintHeroOnChain(name);
+      const heroObjectId = await mintHeroOnChain(name, senderAddress, sub);
       dispatch({ type: "START_GAME", name, heroObjectId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to mint hero. Try again.");
+      setError(
+        err instanceof Error ? err.message : "Failed to mint hero. Try again.",
+      );
       setMinting(false);
     }
   };
@@ -572,7 +727,11 @@ function NamingScreen({
               if (e.key === "Enter") handleStart();
             }}
           />
-          <button onClick={handleStart} disabled={minting} className="cta-btn disabled:opacity-50">
+          <button
+            onClick={handleStart}
+            disabled={minting}
+            className="cta-btn disabled:opacity-50"
+          >
             {minting ? "Minting..." : "Descend"}
           </button>
         </div>
@@ -608,10 +767,12 @@ function NamingScreen({
 function DeathScreen({
   state,
   leaderboard,
+  burnStatus,
   onRetry,
 }: {
   state: GameState;
   leaderboard: LeaderboardEntry[];
+  burnStatus: string;
   onRetry: () => void;
 }) {
   return (
@@ -621,7 +782,7 @@ function DeathScreen({
           className="text-5xl text-blood mb-6"
           style={{ animation: "skullFloat 4s ease-in-out infinite" }}
         >
-          ☠
+          &#x2620;
         </div>
         <h1 className="font-[family-name:var(--font-display)] text-4xl text-blood tracking-[0.08em] mb-2">
           You Have Perished
@@ -650,21 +811,33 @@ function DeathScreen({
             </div>
             <div className="flex justify-between">
               <span className="text-stone-500">Cause of Death</span>
-              <span className="text-blood text-right max-w-48 truncate">{state.causeOfDeath}</span>
+              <span className="text-blood text-right max-w-48 truncate">
+                {state.causeOfDeath}
+              </span>
             </div>
           </div>
         </div>
 
-        <button
-          className="cta-btn mt-8"
-          onClick={onRetry}
-        >
+        {burnStatus && (
+          <p className={`mt-4 font-[family-name:var(--font-mono)] text-xs ${
+            burnStatus.includes("failed") ? "text-blood" :
+            burnStatus.includes("burned on-chain") ? "text-heal" :
+            "text-stone-500 animate-pulse"
+          }`}>
+            {burnStatus}
+          </p>
+        )}
+
+        <button className="cta-btn mt-8" onClick={onRetry}>
           Try Again
         </button>
 
         {leaderboard.length > 0 && (
           <div className="mt-10">
-            <Leaderboard entries={leaderboard} highlightHero={state.hero.name} />
+            <Leaderboard
+              entries={leaderboard}
+              highlightHero={state.hero.name}
+            />
           </div>
         )}
 
@@ -693,7 +866,6 @@ function Leaderboard({
         </h3>
       </div>
 
-      {/* Header */}
       <div className="grid grid-cols-[1.5rem_1fr_4rem_2.5rem_2.5rem_2.5rem] gap-x-2 mb-2 text-[10px] font-[family-name:var(--font-mono)] text-stone-600 uppercase tracking-wider">
         <span>#</span>
         <span>Hero</span>
@@ -705,11 +877,12 @@ function Leaderboard({
 
       <div className="space-y-1">
         {entries.slice(0, 10).map((entry, i) => {
-          const isHighlighted = highlightHero && entry.hero_name === highlightHero;
+          const isHighlighted =
+            highlightHero && entry.hero_name === highlightHero;
           const rankColors = [
-            "text-gold-bright", // 1st
-            "text-stone-300",   // 2nd
-            "text-torch",       // 3rd
+            "text-gold-bright",
+            "text-stone-300",
+            "text-torch",
           ];
           const rankColor = i < 3 ? rankColors[i] : "text-stone-600";
 
@@ -721,19 +894,27 @@ function Leaderboard({
               }`}
             >
               <span className={rankColor}>{i + 1}</span>
-              <span className={`truncate ${isHighlighted ? "text-gold" : "text-stone-300"}`}>
+              <span
+                className={`truncate ${isHighlighted ? "text-gold" : "text-stone-300"}`}
+              >
                 {entry.hero_name}
               </span>
               <span className="truncate text-stone-600">
                 {entry.player_name}
               </span>
-              <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
+              <span
+                className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}
+              >
                 {entry.floor}
               </span>
-              <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
+              <span
+                className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}
+              >
                 {entry.level}
               </span>
-              <span className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}>
+              <span
+                className={`text-right ${isHighlighted ? "text-gold" : "text-stone-400"}`}
+              >
                 {entry.kills}
               </span>
             </div>
