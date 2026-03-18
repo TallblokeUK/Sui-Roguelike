@@ -659,25 +659,24 @@ export function GameScreen() {
       )}
 
       {/* Header bar */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-stone-700/50 shrink-0">
-        <div className="flex items-center gap-4">
-          <h1 className="font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-stone-300">
+      <header className="flex items-center justify-between px-3 py-1.5 border-b border-stone-700/50 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-3 shrink-0">
+          <h1 className="font-[family-name:var(--font-display)] text-xs tracking-[0.15em] text-stone-300">
             Crypts of Sui
           </h1>
-          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-400">
+          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-500">
             {session.name}
           </span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-[family-name:var(--font-mono)] text-xs text-stone-400">
-            Floor {state.floor} · Kills {state.killCount} · Turn{" "}
-            {state.turnsElapsed}
+            F{state.floor} · K{state.killCount} · T{state.turnsElapsed}
           </span>
           {autoExploring && (
             <span className="font-[family-name:var(--font-mono)] text-xs text-gold animate-pulse">
               AUTO
             </span>
           )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
           <button
             onClick={() => {
               const newMuted = !muted;
@@ -685,14 +684,14 @@ export function GameScreen() {
               setAudioMuted(newMuted);
               if (!audioInit.current) { initAudio(); audioInit.current = true; }
             }}
-            className="text-stone-500 hover:text-stone-300 font-[family-name:var(--font-mono)] text-xs transition"
+            className="text-stone-500 hover:text-stone-300 font-[family-name:var(--font-mono)] text-xs transition px-1"
             title={muted ? "Unmute" : "Mute"}
           >
             {muted ? "♪̸" : "♪"}
           </button>
           <button
             onClick={() => setShowHelp((v) => !v)}
-            className="text-stone-500 hover:text-stone-300 font-[family-name:var(--font-mono)] text-xs transition"
+            className="text-stone-500 hover:text-stone-300 font-[family-name:var(--font-mono)] text-xs transition px-1"
             title="Key bindings (?)"
           >
             ?
@@ -712,7 +711,7 @@ export function GameScreen() {
             }}
             className="text-gold hover:text-gold-bright font-[family-name:var(--font-mono)] text-xs border border-gold/30 hover:border-gold/60 px-2 py-0.5 rounded transition"
           >
-            Save & Quit
+            Save &amp; Quit
           </button>
           <button
             onClick={() => {
