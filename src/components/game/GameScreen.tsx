@@ -165,56 +165,6 @@ async function burnHeroOnChain(
 }
 
 /** Burn item objects on-chain via sponsored transaction (batches of 5) */
-async function burnItemsOnChain(
-  itemObjectIds: string[],
-  session: ZkLoginSession,
-  onStatus?: (msg: string) => void,
-): Promise<boolean> {
-  if (!itemObjectIds.length) return true;
-
-  // Batch into groups of 5 to avoid PTB/gas limits
-  const batchSize = 5;
-  for (let i = 0; i < itemObjectIds.length; i += batchSize) {
-    const batch = itemObjectIds.slice(i, i + batchSize);
-    const batchNum = Math.floor(i / batchSize) + 1;
-    const totalBatches = Math.ceil(itemObjectIds.length / batchSize);
-    onStatus?.(`Burning batch ${batchNum}/${totalBatches}...`);
-
-    try {
-      const res = await fetch("/api/items/burn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemObjectIds: batch, sender: session.address }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const msg = err.error || `HTTP ${res.status}`;
-        console.error("Item burn API error:", msg);
-        onStatus?.(`Burn failed: ${msg}`);
-        return false;
-      }
-      const { sponsoredTxBytes, sponsorSignature } = await res.json();
-
-      const ephemeralKeyPair = deserializeKeypair(session.ephemeralKeyPairB64);
-      const { signature: userSignature } =
-        await ephemeralKeyPair.signTransaction(fromBase64(sponsoredTxBytes));
-      const zkLoginSig = createZkLoginSignature(session, userSignature);
-
-      const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
-      await suiClient.executeTransactionBlock({
-        transactionBlock: sponsoredTxBytes,
-        signature: [zkLoginSig, sponsorSignature],
-        options: { showEffects: true },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Item burn error:", msg);
-      onStatus?.(`Burn failed: ${msg}`);
-      return false;
-    }
-  }
-  return true;
-}
 
 /** Fetch wallet items owned by address */
 async function fetchWalletItems(owner: string): Promise<WalletItem[]> {
@@ -270,35 +220,35 @@ async function transferItemOnChain(
   }
 }
 
-function mintItemOnChain(
-  item: {
-    name: string;
-    type: string;
-    rarity: string;
-    value: number;
-    glyph: string;
-    description: string;
-  },
+/** Mint a single item on-chain (used when saving an item on death) */
+async function mintSavedItemOnChain(
+  item: { name: string; type: string; rarity: string; value: number; glyph: string; description: string },
   heroName: string,
   floor: number,
-  senderAddress: string,
-) {
-  // Fire-and-forget — don't block gameplay
-  fetch("/api/items/mint", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: item.name,
-      itemType: item.type,
-      rarity: item.rarity,
-      value: item.value,
-      glyph: item.glyph,
-      description: item.description,
-      heroName,
-      floor,
-      sender: senderAddress,
-    }),
-  }).catch(() => {}); // silently ignore failures
+  recipientAddress: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch("/api/items/mint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: item.name,
+        itemType: item.type,
+        rarity: item.rarity,
+        value: item.value,
+        glyph: item.glyph,
+        description: item.description,
+        heroName,
+        floor,
+        sender: recipientAddress,
+      }),
+    });
+    if (!res.ok) return null;
+    const { itemObjectId } = await res.json();
+    return itemObjectId || null;
+  } catch {
+    return null;
+  }
 }
 
 export function GameScreen() {
@@ -449,21 +399,10 @@ export function GameScreen() {
     }
   }, [state.phase, session]);
 
-  // Mint items on-chain when picked up
+  // Track inventory size (used for UI effects)
   useEffect(() => {
-    const currentSize = state.hero.inventory.length;
-    if (
-      currentSize > prevInventorySize.current &&
-      state.phase === "playing" &&
-      session
-    ) {
-      const newItem = state.hero.inventory[currentSize - 1];
-      if (newItem) {
-        mintItemOnChain(newItem, state.hero.name, state.floor, session.address);
-      }
-    }
-    prevInventorySize.current = currentSize;
-  }, [state.hero.inventory.length, state.hero.name, state.floor, state.phase, session]);
+    prevInventorySize.current = state.hero.inventory.length;
+  }, [state.hero.inventory.length]);
 
   // Damage flash when HP drops
   useEffect(() => {
@@ -1541,16 +1480,6 @@ function NamingScreen({
     setMinting(true);
     setError("");
     try {
-      // If an heirloom is selected, burn it on-chain first (consume from wallet)
-      if (selectedHeirloom && session) {
-        const burned = await burnItemsOnChain([selectedHeirloom.objectId], session);
-        if (!burned) {
-          setError("Failed to burn heirloom item. Try again.");
-          setMinting(false);
-          return;
-        }
-      }
-
       const heroObjectId = await mintHeroOnChain(name, senderAddress, sub);
 
       // Convert wallet item to game Item
@@ -1728,7 +1657,7 @@ function NamingScreen({
 
         {minting && (
           <p className="mt-4 text-torch font-[family-name:var(--font-mono)] text-xs animate-pulse">
-            {selectedHeirloom ? "Burning heirloom & minting hero..." : "Minting hero on Sui..."}
+            Minting hero on Sui...
           </p>
         )}
         {error && (
@@ -1750,7 +1679,7 @@ function NamingScreen({
               </span>
             </div>
             <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mb-3">
-              Bring 1 item from your wallet into this run. The item will be consumed from chain.
+              Equip 1 item from your wallet into this run. It stays in your wallet.
             </p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {walletItems.filter((i) => i.type !== "potion" && i.type !== "scroll").map((item) => (
@@ -1779,7 +1708,7 @@ function NamingScreen({
             </div>
             {selectedHeirloom && (
               <p className="mt-2 text-gold font-[family-name:var(--font-mono)] text-xs">
-                {selectedHeirloom.name} will be consumed from chain and added to inventory.
+                {selectedHeirloom.name} will be added to your starting inventory.
               </p>
             )}
           </div>
@@ -1818,27 +1747,6 @@ function NamingScreen({
               <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs ml-auto">
                 {walletItems.length} owned
               </span>
-              {walletItems.length > 0 && (
-                <button
-                  onClick={async () => {
-                    if (!session || !confirm(`Burn all ${walletItems.length} items? This cannot be undone.`)) return;
-                    setTransferring(true);
-                    setTransferMsg("Burning all items...");
-                    const ids = walletItems.map((i) => i.objectId);
-                    const ok = await burnItemsOnChain(ids, session, setTransferMsg);
-                    if (ok) {
-                      setWalletItems([]);
-                      setTransferMsg(`${ids.length} items burned.`);
-                      setSelectedHeirloom(null);
-                    }
-                    setTransferring(false);
-                  }}
-                  disabled={transferring}
-                  className="text-blood font-[family-name:var(--font-mono)] text-xs border border-blood/30 hover:border-blood/60 hover:bg-blood/10 px-2 py-0.5 rounded transition-colors disabled:opacity-50"
-                >
-                  Burn All
-                </button>
-              )}
             </div>
             {walletItems.length === 0 && (
               <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">No items in wallet.</p>
@@ -2097,42 +2005,41 @@ function DeathScreen({
   const multiplier = computeMetaBonuses(accountProg.upgrades).emberMultiplier;
   const emberBreakdown = calculateSoulEmbers(state.floor, state.hero.level, state.killCount, multiplier);
 
-  // Fetch wallet items on mount so we can show what survived and burn unsaved ones
-  const [walletItems, setWalletItems] = useState<WalletItem[]>([]);
-  const [walletLoading, setWalletLoading] = useState(true);
-  const [savedObjectId, setSavedObjectId] = useState<string | null>(null);
+  // Show inventory items from this run — player can save 1 to wallet
+  const [savedItemId, setSavedItemId] = useState<string | null>(null);
   const [salvageStatus, setSalvageStatus] = useState("");
-  const [burning, setBurning] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (session) {
-      fetchWalletItems(session.address)
-        .then(setWalletItems)
-        .finally(() => setWalletLoading(false));
-    } else {
-      setWalletLoading(false);
-    }
-  }, [session]);
-
-  // Only show equippable items (no potions/scrolls)
-  const savableItems = walletItems.filter((i) => i.type !== "potion" && i.type !== "scroll");
+  // Equippable items from this run's inventory + equipped gear
+  const allItems: Item[] = [
+    ...state.hero.inventory,
+    ...(state.hero.equipment.weapon ? [state.hero.equipment.weapon] : []),
+    ...(state.hero.equipment.helmet ? [state.hero.equipment.helmet] : []),
+    ...(state.hero.equipment.chest ? [state.hero.equipment.chest] : []),
+    ...(state.hero.equipment.legs ? [state.hero.equipment.legs] : []),
+    ...(state.hero.equipment.boots ? [state.hero.equipment.boots] : []),
+    ...(state.hero.equipment.gloves ? [state.hero.equipment.gloves] : []),
+    ...(state.hero.equipment.ring ? [state.hero.equipment.ring] : []),
+    ...(state.hero.equipment.amulet ? [state.hero.equipment.amulet] : []),
+    ...(state.hero.equipment.bracelet ? [state.hero.equipment.bracelet] : []),
+  ];
+  const savableItems = allItems.filter((i) => i.type !== "potion" && i.type !== "scroll");
 
   const handleRetry = async () => {
-    if (session && savableItems.length > 0) {
-      // Burn all wallet items EXCEPT the one they chose to save
-      const toBurn = savableItems
-        .filter((i) => i.objectId !== savedObjectId)
-        .map((i) => i.objectId);
-
-      if (toBurn.length > 0) {
-        setBurning(true);
-        setSalvageStatus("Burning unsaved items...");
-        const ok = await burnItemsOnChain(toBurn, session);
-        setSalvageStatus(ok
-          ? `${toBurn.length} item${toBurn.length !== 1 ? "s" : ""} burned. ${savedObjectId ? "Heirloom saved to vault." : ""}`
-          : "Some items could not be burned (non-critical)."
+    // Mint the saved item on-chain if one was selected
+    if (session && savedItemId) {
+      const item = savableItems.find((i) => i.id === savedItemId);
+      if (item) {
+        setSaving(true);
+        setSalvageStatus("Minting saved item on-chain...");
+        const objectId = await mintSavedItemOnChain(
+          item, state.hero.name, state.floor, session.address,
         );
-        setBurning(false);
+        setSalvageStatus(objectId
+          ? `${item.name} saved to your wallet!`
+          : "Failed to save item (non-critical)."
+        );
+        setSaving(false);
       }
     }
     onRetry();
@@ -2195,23 +2102,23 @@ function DeathScreen({
           </p>
         )}
 
-        {/* Save 1 Item — pick 1 wallet item to keep, burn the rest */}
-        {!walletLoading && savableItems.length > 0 && (
+        {/* Save 1 Item — pick 1 item from this run to mint on-chain */}
+        {savableItems.length > 0 && session && (
           <div className="card mt-6 text-left">
             <p className="font-[family-name:var(--font-display)] text-sm tracking-wide text-stone-300 mb-1">
               Salvage from the Wreckage
             </p>
             <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mb-3">
-              Choose 1 item to save. Everything else will be burned on-chain when you continue.
+              Choose 1 item to save to your on-chain wallet. It can be equipped on future heroes or traded.
             </p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {savableItems.map((item) => (
                 <button
-                  key={item.objectId}
-                  onClick={() => setSavedObjectId(savedObjectId === item.objectId ? null : item.objectId)}
-                  disabled={burning}
+                  key={item.id}
+                  onClick={() => setSavedItemId(savedItemId === item.id ? null : item.id)}
+                  disabled={saving}
                   className={`w-full flex items-center gap-2 px-3 py-2 border rounded text-left transition-colors ${
-                    savedObjectId === item.objectId
+                    savedItemId === item.id
                       ? "border-gold/40 bg-gold/10"
                       : "border-stone-700/50 hover:border-stone-600"
                   } disabled:opacity-50`}
@@ -2223,7 +2130,7 @@ function DeathScreen({
                   <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">
                     {item.type}
                   </span>
-                  {savedObjectId === item.objectId && (
+                  {savedItemId === item.id && (
                     <span className="text-gold text-xs">&#x2713;</span>
                   )}
                 </button>
@@ -2233,11 +2140,6 @@ function DeathScreen({
               <p className="mt-2 text-gold font-[family-name:var(--font-mono)] text-xs">{salvageStatus}</p>
             )}
           </div>
-        )}
-        {walletLoading && (
-          <p className="mt-4 text-stone-500 font-[family-name:var(--font-mono)] text-xs animate-pulse">
-            Loading wallet items...
-          </p>
         )}
 
         {/* Soul Ember Award */}

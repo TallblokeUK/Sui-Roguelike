@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PROVER_URL = "https://prover-dev.mystenlabs.com/v1";
+// prover-dev is for devnet only; testnet/mainnet use the production prover
+const PROVER_URL = "https://prover.mystenlabs.com/v1";
 
 export const maxDuration = 30;
 
