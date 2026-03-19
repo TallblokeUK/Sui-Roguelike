@@ -1,7 +1,7 @@
-// ─── Auto-explore: BFS to nearest unrevealed walkable neighbor ───
+// ─── Auto-explore: BFS to nearest interesting tile ───
 
 import type { Tile, Position, Direction } from "./types";
-import { MAP_WIDTH, MAP_HEIGHT } from "./types";
+import { MAP_WIDTH, MAP_HEIGHT, TileType } from "./types";
 import { isWalkable } from "./dungeon";
 
 const DIRS: { dir: Direction; dx: number; dy: number }[] = [
@@ -12,14 +12,18 @@ const DIRS: { dir: Direction; dx: number; dy: number }[] = [
 ];
 
 /**
- * Returns the direction for the first step toward the nearest unrevealed area,
- * or null if no reachable unexplored tile exists.
+ * Returns the direction for the first step toward the nearest interesting tile.
+ * Targets (in priority order via BFS):
+ *  1. Tiles adjacent to unrevealed areas (fog of war)
+ *  2. Tiles with items on the ground
+ *  3. Stairs down
+ *  4. Walkable tiles not currently visible (revealed but unvisited this FOV pass)
+ * Returns null if nothing interesting is reachable.
  */
 export function getAutoExploreDirection(
   map: Tile[][],
   heroPos: Position,
 ): Direction | null {
-  // BFS from hero position
   const visited = new Uint8Array(MAP_WIDTH * MAP_HEIGHT);
   const parent = new Int32Array(MAP_WIDTH * MAP_HEIGHT).fill(-1);
   const queue: number[] = [];
@@ -30,13 +34,13 @@ export function getAutoExploreDirection(
 
   let targetIdx = -1;
 
+  // First pass: look for tiles adjacent to unrevealed areas
   let head = 0;
   while (head < queue.length) {
     const idx = queue[head++];
     const cx = idx % MAP_WIDTH;
     const cy = (idx - cx) / MAP_WIDTH;
 
-    // Check if this tile is adjacent to an unrevealed tile
     for (const { dx, dy } of DIRS) {
       const nx = cx + dx;
       const ny = cy + dy;
@@ -48,7 +52,6 @@ export function getAutoExploreDirection(
     }
     if (targetIdx >= 0) break;
 
-    // Expand neighbors
     for (const { dx, dy } of DIRS) {
       const nx = cx + dx;
       const ny = cy + dy;
@@ -59,6 +62,35 @@ export function getAutoExploreDirection(
       visited[nIdx] = 1;
       parent[nIdx] = idx;
       queue.push(nIdx);
+    }
+  }
+
+  // If no fog-of-war target, look for items or stairs among visited tiles
+  if (targetIdx < 0) {
+    for (let i = 0; i < queue.length; i++) {
+      const idx = queue[i];
+      if (idx === startIdx) continue;
+      const cx = idx % MAP_WIDTH;
+      const cy = (idx - cx) / MAP_WIDTH;
+      const tile = map[cy][cx];
+      if (tile.item || tile.type === TileType.StairsDown) {
+        targetIdx = idx;
+        break;
+      }
+    }
+  }
+
+  // If still nothing, walk toward any revealed-but-not-visible walkable tile
+  if (targetIdx < 0) {
+    for (let i = 0; i < queue.length; i++) {
+      const idx = queue[i];
+      if (idx === startIdx) continue;
+      const cx = idx % MAP_WIDTH;
+      const cy = (idx - cx) / MAP_WIDTH;
+      if (map[cy][cx].revealed && !map[cy][cx].visible) {
+        targetIdx = idx;
+        break;
+      }
     }
   }
 
