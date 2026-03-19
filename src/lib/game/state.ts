@@ -1116,6 +1116,38 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case "UNEQUIP_ITEM": {
+      if (state.phase !== "playing") return state;
+      const slots: Array<keyof Equipment> = ["weapon", "helmet", "chest", "legs", "boots", "gloves", "ring", "amulet", "bracelet"];
+      const slot = slots.find((s) => state.hero.equipment[s]?.id === action.itemId);
+      if (!slot) return state;
+      const equippedItem = state.hero.equipment[slot]!;
+
+      if (equippedItem.cursed) {
+        return {
+          ...state,
+          log: [...state.log, { text: `${equippedItem.name} is cursed! It cannot be removed.`, type: "danger" }],
+        };
+      }
+
+      if (state.hero.inventory.length >= MAX_INVENTORY) {
+        return {
+          ...state,
+          log: [...state.log, { text: "Inventory full! Cannot unequip.", type: "danger" }],
+        };
+      }
+
+      return {
+        ...state,
+        hero: {
+          ...state.hero,
+          equipment: { ...state.hero.equipment, [slot]: null },
+          inventory: [...state.hero.inventory, equippedItem],
+        },
+        log: [...state.log, { text: `Unequipped ${equippedItem.name}.`, type: "info" }],
+      };
+    }
+
     case "DROP_ITEM": {
       if (state.phase !== "playing") return state;
       const item = state.hero.inventory.find((i) => i.id === action.itemId);

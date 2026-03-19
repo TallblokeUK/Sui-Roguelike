@@ -249,6 +249,7 @@ export type GameAction =
   | { type: "PICKUP" }
   | { type: "USE_ITEM"; itemId: string }
   | { type: "EQUIP_ITEM"; itemId: string }
+  | { type: "UNEQUIP_ITEM"; itemId: string }
   | { type: "DROP_ITEM"; itemId: string }
   | { type: "WAIT" }
   | { type: "ABANDON" }

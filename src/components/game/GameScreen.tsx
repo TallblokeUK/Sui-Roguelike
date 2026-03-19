@@ -16,6 +16,8 @@ import {
   getHeroAtk,
   getHeroDef,
   getHeroMaxHp,
+  getHeroCrit,
+  getHeroDodge,
 } from "@/lib/game/state";
 import { XP_PER_LEVEL, FOV_RADIUS } from "@/lib/game/types";
 import { initAudio, playSound, setMuted as setAudioMuted, isMuted } from "@/lib/game/audio";
@@ -1138,7 +1140,7 @@ function HeroPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-xs font-[family-name:var(--font-mono)]">
+      <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-xs font-[family-name:var(--font-mono)]">
         <div className="text-stone-500">
           ATK <span className="text-torch">{getHeroAtk(hero)}</span>
         </div>
@@ -1147,6 +1149,12 @@ function HeroPanel({
         </div>
         <div className="text-stone-500">
           Gold <span className="text-gold-bright">{hero.gold}</span>
+        </div>
+        <div className="text-stone-500">
+          Dodge <span className="text-heal">{getHeroDodge(hero)}%</span>
+        </div>
+        <div className="text-stone-500">
+          Crit <span className="text-gold">{getHeroCrit(hero)}%</span>
         </div>
       </div>
 
@@ -1242,15 +1250,15 @@ function HeroPanel({
           Equipment
         </div>
         <div className="space-y-1 text-xs font-[family-name:var(--font-mono)]">
-          <EquipSlot label="Wpn" item={hero.equipment.weapon} />
-          <EquipSlot label="Hlm" item={hero.equipment.helmet} />
-          <EquipSlot label="Cht" item={hero.equipment.chest} />
-          <EquipSlot label="Leg" item={hero.equipment.legs} />
-          <EquipSlot label="Bts" item={hero.equipment.boots} />
-          <EquipSlot label="Glv" item={hero.equipment.gloves} />
-          <EquipSlot label="Rng" item={hero.equipment.ring} />
-          <EquipSlot label="Aml" item={hero.equipment.amulet} />
-          <EquipSlot label="Brc" item={hero.equipment.bracelet} />
+          <EquipSlot label="Wpn" item={hero.equipment.weapon} dispatch={dispatch} />
+          <EquipSlot label="Hlm" item={hero.equipment.helmet} dispatch={dispatch} />
+          <EquipSlot label="Cht" item={hero.equipment.chest} dispatch={dispatch} />
+          <EquipSlot label="Leg" item={hero.equipment.legs} dispatch={dispatch} />
+          <EquipSlot label="Bts" item={hero.equipment.boots} dispatch={dispatch} />
+          <EquipSlot label="Glv" item={hero.equipment.gloves} dispatch={dispatch} />
+          <EquipSlot label="Rng" item={hero.equipment.ring} dispatch={dispatch} />
+          <EquipSlot label="Aml" item={hero.equipment.amulet} dispatch={dispatch} />
+          <EquipSlot label="Brc" item={hero.equipment.bracelet} dispatch={dispatch} />
         </div>
       </div>
 
@@ -1274,14 +1282,25 @@ function HeroPanel({
   );
 }
 
-function EquipSlot({ label, item }: { label: string; item: Item | null }) {
+function EquipSlot({ label, item, dispatch }: { label: string; item: Item | null; dispatch: React.Dispatch<import("@/lib/game/types").GameAction> }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 group">
       <span className="text-stone-700 w-8">{label}</span>
       {item ? (
-        <span className={RARITY_COLORS[item.rarity]} title={item.description}>
-          {item.cursed ? "💀 " : ""}{item.setId ? "⚙ " : ""}{item.name}
-        </span>
+        <>
+          <span className={`flex-1 truncate ${RARITY_COLORS[item.rarity]}`} title={item.description}>
+            {item.cursed ? "💀 " : ""}{item.setId ? "⚙ " : ""}{item.name}
+          </span>
+          {!item.cursed && (
+            <button
+              onClick={() => dispatch({ type: "UNEQUIP_ITEM", itemId: item.id })}
+              className="text-stone-700 hover:text-stone-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+              title="Unequip"
+            >
+              ✕
+            </button>
+          )}
+        </>
       ) : (
         <span className="text-stone-800">&mdash;</span>
       )}
