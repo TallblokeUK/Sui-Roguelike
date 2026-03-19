@@ -131,7 +131,7 @@ const GLOVES: ItemTemplate[] = [
 
 // ─── Rings ───
 const RINGS: ItemTemplate[] = [
-  { name: "Copper Ring", type: "ring", glyph: "°", baseValue: 1, description: "Simple copper band." },
+  { name: "Copper Ring", type: "ring", glyph: "°", baseValue: 1, description: "Simple copper band. +ATK." },
   { name: "Ring of Strength", type: "ring", glyph: "°", baseValue: 2, description: "+ATK while worn." },
   { name: "Ring of Protection", type: "ring", glyph: "°", baseValue: 2, description: "+DEF while worn." },
   { name: "Ring of Vitality", type: "ring", glyph: "°", baseValue: 8, description: "+Max HP while worn." },
@@ -139,34 +139,34 @@ const RINGS: ItemTemplate[] = [
   { name: "Ring of the Sentinel", type: "ring", glyph: "°", baseValue: 4, description: "+DEF while worn." },
   { name: "Ring of Regeneration", type: "ring", glyph: "°", baseValue: 15, description: "+Max HP while worn." },
   { name: "Ring of Evasion", type: "ring", glyph: "°", baseValue: 3, description: "Dodge chance increased." },
-  { name: "Bloodstone Ring", type: "ring", glyph: "°", baseValue: 5, description: "Pulses with crimson light." },
-  { name: "Ring of the Phoenix", type: "ring", glyph: "°", baseValue: 10, description: "Warm to the touch, refuses to dim." },
+  { name: "Bloodstone Ring", type: "ring", glyph: "°", baseValue: 5, description: "Pulses with crimson light. +ATK." },
+  { name: "Ring of the Phoenix", type: "ring", glyph: "°", baseValue: 10, description: "Warm to the touch, refuses to dim. +ATK." },
 ];
 
 // ─── Amulets ───
 const AMULETS: ItemTemplate[] = [
-  { name: "Bone Pendant", type: "amulet", glyph: "\"", baseValue: 1, description: "Carved from unknown bone." },
-  { name: "Silver Amulet", type: "amulet", glyph: "\"", baseValue: 2, description: "Wards against evil." },
+  { name: "Bone Pendant", type: "amulet", glyph: "\"", baseValue: 1, description: "Carved from unknown bone. +ATK." },
+  { name: "Silver Amulet", type: "amulet", glyph: "\"", baseValue: 2, description: "Wards against evil. +ATK." },
   { name: "Amulet of Fortitude", type: "amulet", glyph: "\"", baseValue: 3, description: "+Max HP while worn." },
   { name: "Amulet of Wrath", type: "amulet", glyph: "\"", baseValue: 3, description: "+ATK while worn." },
   { name: "Amulet of the Bulwark", type: "amulet", glyph: "\"", baseValue: 3, description: "+DEF while worn." },
-  { name: "Talisman of Focus", type: "amulet", glyph: "\"", baseValue: 4, description: "Enhances combat precision." },
+  { name: "Talisman of Focus", type: "amulet", glyph: "\"", baseValue: 4, description: "Enhances combat precision. +ATK." },
   { name: "Medallion of the Undying", type: "amulet", glyph: "\"", baseValue: 6, description: "Death finds it hard to claim you." },
-  { name: "Amulet of the Void", type: "amulet", glyph: "\"", baseValue: 5, description: "A black gem that absorbs light." },
+  { name: "Amulet of the Void", type: "amulet", glyph: "\"", baseValue: 5, description: "A black gem that absorbs light. +ATK." },
   { name: "Heart of the Mountain", type: "amulet", glyph: "\"", baseValue: 8, description: "Stone-forged resilience." },
-  { name: "Soultrap Pendant", type: "amulet", glyph: "\"", baseValue: 10, description: "Traps defeated spirits within." },
+  { name: "Soultrap Pendant", type: "amulet", glyph: "\"", baseValue: 10, description: "Traps defeated spirits within. +ATK." },
 ];
 
 // ─── Bracelets ───
 const BRACELETS: ItemTemplate[] = [
-  { name: "Leather Wristband", type: "bracelet", glyph: "~", baseValue: 1, description: "Simple wrist guard." },
-  { name: "Iron Bangle", type: "bracelet", glyph: "~", baseValue: 2, description: "Heavy iron bracelet." },
+  { name: "Leather Wristband", type: "bracelet", glyph: "~", baseValue: 1, description: "Simple wrist guard. +ATK." },
+  { name: "Iron Bangle", type: "bracelet", glyph: "~", baseValue: 2, description: "Heavy iron bracelet. +ATK." },
   { name: "Bracelet of Might", type: "bracelet", glyph: "~", baseValue: 3, description: "+ATK while worn." },
   { name: "Bracelet of Warding", type: "bracelet", glyph: "~", baseValue: 3, description: "+DEF while worn." },
-  { name: "Charm Bracelet", type: "bracelet", glyph: "~", baseValue: 4, description: "Tiny charms clink together." },
-  { name: "Viper's Coil", type: "bracelet", glyph: "~", baseValue: 4, description: "A serpent-shaped bracelet that bites." },
-  { name: "Shackle of Power", type: "bracelet", glyph: "~", baseValue: 6, description: "Chains that grant, not bind." },
-  { name: "Bracelet of the Cosmos", type: "bracelet", glyph: "~", baseValue: 8, description: "Stars orbit within the gems." },
+  { name: "Charm Bracelet", type: "bracelet", glyph: "~", baseValue: 4, description: "Tiny charms clink together. +ATK." },
+  { name: "Viper's Coil", type: "bracelet", glyph: "~", baseValue: 4, description: "A serpent-shaped bracelet that bites. +ATK." },
+  { name: "Shackle of Power", type: "bracelet", glyph: "~", baseValue: 6, description: "Chains that grant, not bind. +ATK." },
+  { name: "Bracelet of the Cosmos", type: "bracelet", glyph: "~", baseValue: 8, description: "Stars orbit within the gems. +ATK." },
 ];
 
 // ─── Potions ───

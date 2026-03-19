@@ -87,6 +87,20 @@ function equippedItems(hero: Hero): Item[] {
   return slots.map((s) => hero.equipment[s]).filter((i): i is Item => i !== null);
 }
 
+// ─── Accessory keyword matching ───
+const ATK_KEYWORDS = ["Strength", "Berserker", "Wrath", "Might"];
+const DEF_KEYWORDS = ["Protection", "Sentinel", "Bulwark", "Warding"];
+const HP_KEYWORDS = ["Vitality", "Regeneration", "Fortitude", "Undying", "Mountain"];
+const DODGE_KEYWORDS = ["Evasion"];
+
+function accessoryMatchesAny(name: string, keywords: string[]): boolean {
+  return keywords.some((k) => name.includes(k));
+}
+
+function accessoryHasKeyword(name: string): boolean {
+  return accessoryMatchesAny(name, [...ATK_KEYWORDS, ...DEF_KEYWORDS, ...HP_KEYWORDS, ...DODGE_KEYWORDS]);
+}
+
 // ─── Computed hero stats (base + equipment + set bonuses) ───
 export function getHeroAtk(hero: Hero): number {
   let atk = hero.atk;
@@ -94,10 +108,13 @@ export function getHeroAtk(hero: Hero): number {
   if (hero.equipment.weapon) atk += hero.equipment.weapon.value;
   // Gloves add half value as ATK
   if (hero.equipment.gloves) atk += Math.floor(hero.equipment.gloves.value / 2);
-  // Accessories with ATK keywords
+  // Accessories: ATK keywords give full value, generic accessories give half value as ATK
   for (const item of [hero.equipment.ring, hero.equipment.amulet, hero.equipment.bracelet]) {
-    if (item && (item.name.includes("Strength") || item.name.includes("Berserker") || item.name.includes("Wrath") || item.name.includes("Might"))) {
+    if (!item || item.setId) continue;
+    if (accessoryMatchesAny(item.name, ATK_KEYWORDS)) {
       atk += item.value;
+    } else if (!accessoryHasKeyword(item.name)) {
+      atk += Math.max(1, Math.floor(item.value / 2));
     }
   }
   // Shadowsteel set bonus
@@ -119,7 +136,7 @@ export function getHeroDef(hero: Hero): number {
   if (hero.equipment.gloves) def += Math.ceil(hero.equipment.gloves.value / 2);
   // Accessories with DEF keywords
   for (const item of [hero.equipment.ring, hero.equipment.amulet, hero.equipment.bracelet]) {
-    if (item && (item.name.includes("Protection") || item.name.includes("Sentinel") || item.name.includes("Bulwark") || item.name.includes("Warding"))) {
+    if (item && !item.setId && accessoryMatchesAny(item.name, DEF_KEYWORDS)) {
       def += item.value;
     }
   }
@@ -131,7 +148,7 @@ export function getHeroMaxHp(hero: Hero): number {
   let maxHp = hero.maxHp;
   // Accessories with HP keywords
   for (const item of [hero.equipment.ring, hero.equipment.amulet, hero.equipment.bracelet]) {
-    if (item && (item.name.includes("Vitality") || item.name.includes("Regeneration") || item.name.includes("Fortitude") || item.name.includes("Undying") || item.name.includes("Mountain"))) {
+    if (item && !item.setId && accessoryMatchesAny(item.name, HP_KEYWORDS)) {
       maxHp += item.value;
     }
   }
@@ -161,7 +178,7 @@ export function getHeroDodge(hero: Hero): number {
   }
   // Evasion accessories
   for (const item of [hero.equipment.ring, hero.equipment.amulet, hero.equipment.bracelet]) {
-    if (item && item.name.includes("Evasion")) dodge += item.value;
+    if (item && !item.setId && accessoryMatchesAny(item.name, DODGE_KEYWORDS)) dodge += item.value;
   }
   // Wraith 2pc: +10% dodge
   if (countSetPieces(hero.equipment, "wraith") >= 2) dodge += 10;
