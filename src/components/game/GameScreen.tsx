@@ -1678,7 +1678,7 @@ function DeathScreen({
   const multiplier = computeMetaBonuses(accountProg.upgrades).emberMultiplier;
   const emberBreakdown = calculateSoulEmbers(state.floor, state.hero.level, state.killCount, multiplier);
   return (
-    <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6 overflow-y-auto">
+    <div className="min-h-dvh flex flex-col items-center stone-bg noise px-6 overflow-y-auto">
       <div className="fade-in text-center max-w-lg py-12">
         <div
           className="text-5xl text-blood mb-6"
