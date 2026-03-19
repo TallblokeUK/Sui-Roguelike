@@ -164,37 +164,47 @@ async function burnHeroOnChain(
   }
 }
 
-/** Burn item objects on-chain via sponsored transaction */
+/** Burn item objects on-chain via sponsored transaction (batches of 10) */
 async function burnItemsOnChain(
   itemObjectIds: string[],
   session: ZkLoginSession,
 ): Promise<boolean> {
   if (!itemObjectIds.length) return true;
-  try {
-    const res = await fetch("/api/items/burn", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemObjectIds, sender: session.address }),
-    });
-    if (!res.ok) return false;
-    const { sponsoredTxBytes, sponsorSignature } = await res.json();
 
-    const ephemeralKeyPair = deserializeKeypair(session.ephemeralKeyPairB64);
-    const { signature: userSignature } =
-      await ephemeralKeyPair.signTransaction(fromBase64(sponsoredTxBytes));
-    const zkLoginSig = createZkLoginSignature(session, userSignature);
+  // Batch into groups of 10 to avoid PTB limits
+  const batchSize = 10;
+  for (let i = 0; i < itemObjectIds.length; i += batchSize) {
+    const batch = itemObjectIds.slice(i, i + batchSize);
+    try {
+      const res = await fetch("/api/items/burn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemObjectIds: batch, sender: session.address }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Item burn API error:", err.error || res.status);
+        return false;
+      }
+      const { sponsoredTxBytes, sponsorSignature } = await res.json();
 
-    const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
-    await suiClient.executeTransactionBlock({
-      transactionBlock: sponsoredTxBytes,
-      signature: [zkLoginSig, sponsorSignature],
-      options: { showEffects: true },
-    });
-    return true;
-  } catch (err) {
-    console.error("Item burn error:", err);
-    return false;
+      const ephemeralKeyPair = deserializeKeypair(session.ephemeralKeyPairB64);
+      const { signature: userSignature } =
+        await ephemeralKeyPair.signTransaction(fromBase64(sponsoredTxBytes));
+      const zkLoginSig = createZkLoginSignature(session, userSignature);
+
+      const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
+      await suiClient.executeTransactionBlock({
+        transactionBlock: sponsoredTxBytes,
+        signature: [zkLoginSig, sponsorSignature],
+        options: { showEffects: true },
+      });
+    } catch (err) {
+      console.error("Item burn error:", err instanceof Error ? err.message : err);
+      return false;
+    }
   }
+  return true;
 }
 
 /** Fetch wallet items owned by address */
