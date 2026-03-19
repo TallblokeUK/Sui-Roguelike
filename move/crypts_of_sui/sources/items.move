@@ -11,9 +11,9 @@ use sui::event;
 public struct Item has key, store {
     id: UID,
     name: String,
-    /// 0 = weapon, 1 = armor, 2 = potion, 3 = ring
+    /// 0=weapon 1=helmet 2=chest 3=legs 4=boots 5=gloves 6=ring 7=amulet 8=bracelet 9=potion 10=scroll
     item_type: u8,
-    /// 0 = common, 1 = rare, 2 = epic, 3 = legendary
+    /// 0=common 1=uncommon 2=rare 3=epic 4=legendary 5=mythic 6=ancient 7=divine
     rarity: u8,
     value: u64,
     glyph: String,

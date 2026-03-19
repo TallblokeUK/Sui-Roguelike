@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { sub, floor, level, kills, heroClass, bossKills, turns, heroHp, heroMaxHp } = await req.json();
+    const { sub, floor, level, kills, heroClass, bossKills, turns, heroHp, heroMaxHp, playerAddress, playerName } = await req.json();
     if (!sub || floor == null || level == null || kills == null) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
@@ -118,14 +118,16 @@ export async function POST(req: NextRequest) {
 
     // Upsert
     await pool.query(
-      `INSERT INTO account_progression (sub, soul_embers, total_embers_earned, achievements, updated_at)
-       VALUES ($1, $2, $2, $3, NOW())
+      `INSERT INTO account_progression (sub, soul_embers, total_embers_earned, achievements, player_address, player_name, updated_at)
+       VALUES ($1, $2, $2, $3, $4, $5, NOW())
        ON CONFLICT (sub) DO UPDATE SET
          soul_embers = account_progression.soul_embers + $2,
          total_embers_earned = account_progression.total_embers_earned + $2,
          achievements = $3,
+         player_address = COALESCE($4, account_progression.player_address),
+         player_name = COALESCE($5, account_progression.player_name),
          updated_at = NOW()`,
-      [sub, total, JSON.stringify(updatedAchievements)],
+      [sub, total, JSON.stringify(updatedAchievements), playerAddress || null, playerName || null],
     );
 
     return NextResponse.json({

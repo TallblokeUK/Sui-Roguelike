@@ -393,6 +393,8 @@ export function GameScreen() {
           turns: state.turnsElapsed,
           heroHp: state.hero.hp,
           heroMaxHp: state.hero.maxHp,
+          playerAddress: session.address,
+          playerName: session.name,
         }),
       })
         .then((r) => r.json())
@@ -1489,6 +1491,9 @@ function NamingScreen({
   const [transferItemId, setTransferItemId] = useState<string | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [transferMsg, setTransferMsg] = useState("");
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [playerResults, setPlayerResults] = useState<{name: string; address: string | null}[]>([]);
+  const [searchingPlayer, setSearchingPlayer] = useState(false);
 
   const metaBonuses = computeMetaBonuses(accountProg.upgrades);
 
@@ -1549,6 +1554,22 @@ function NamingScreen({
     }
   };
 
+  const handlePlayerSearch = async () => {
+    if (!playerSearch.trim()) return;
+    setSearchingPlayer(true);
+    try {
+      const res = await fetch(`/api/player?name=${encodeURIComponent(playerSearch.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPlayerResults(data.players || []);
+        if (data.players?.length === 0) setTransferMsg("No players found");
+      }
+    } catch {
+      setTransferMsg("Search failed");
+    }
+    setSearchingPlayer(false);
+  };
+
   const handleTransfer = async () => {
     if (!transferItemId || !transferTarget || !session) return;
     if (!transferTarget.startsWith("0x") || transferTarget.length < 10) {
@@ -1563,6 +1584,8 @@ function NamingScreen({
       setWalletItems((prev) => prev.filter((i) => i.objectId !== transferItemId));
       setTransferItemId(null);
       setTransferTarget("");
+      setPlayerSearch("");
+      setPlayerResults([]);
     } else {
       setTransferMsg("Transfer failed");
     }
@@ -1807,21 +1830,68 @@ function NamingScreen({
               ))}
             </div>
             {transferItemId && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Recipient 0x address..."
-                  value={transferTarget}
-                  onChange={(e) => setTransferTarget(e.target.value)}
-                  className="flex-1 bg-stone-900 border border-stone-700 rounded px-3 py-2 text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-mana/40 font-[family-name:var(--font-mono)] text-xs"
-                />
-                <button
-                  onClick={handleTransfer}
-                  disabled={transferring || !transferTarget}
-                  className="px-3 py-2 text-xs font-[family-name:var(--font-mono)] rounded border border-mana/40 text-mana hover:bg-mana/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {transferring ? "..." : "Transfer"}
-                </button>
+              <div className="mt-3 space-y-2">
+                <p className="text-stone-500 font-[family-name:var(--font-mono)] text-xs">
+                  Send to player:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search player name..."
+                    value={playerSearch}
+                    onChange={(e) => setPlayerSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePlayerSearch(); }}
+                    className="flex-1 bg-stone-900 border border-stone-700 rounded px-3 py-2 text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-mana/40 font-[family-name:var(--font-mono)] text-xs"
+                  />
+                  <button
+                    onClick={handlePlayerSearch}
+                    disabled={searchingPlayer || !playerSearch.trim()}
+                    className="px-3 py-2 text-xs font-[family-name:var(--font-mono)] rounded border border-stone-600 text-stone-400 hover:text-stone-200 hover:border-stone-500 disabled:opacity-50"
+                  >
+                    {searchingPlayer ? "..." : "Find"}
+                  </button>
+                </div>
+                {playerResults.length > 0 && (
+                  <div className="space-y-1">
+                    {playerResults.map((p, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          if (p.address) {
+                            setTransferTarget(p.address);
+                            setPlayerResults([]);
+                            setPlayerSearch(p.name);
+                          }
+                        }}
+                        disabled={!p.address}
+                        className={`w-full flex items-center justify-between px-3 py-2 border rounded text-left transition-colors ${
+                          p.address
+                            ? "border-stone-700/50 hover:border-mana/40 cursor-pointer"
+                            : "border-stone-800/50 opacity-50 cursor-not-allowed"
+                        }`}
+                      >
+                        <span className="font-[family-name:var(--font-mono)] text-xs text-stone-300">{p.name}</span>
+                        <span className="font-[family-name:var(--font-mono)] text-xs text-stone-600">
+                          {p.address ? `${p.address.slice(0, 6)}...${p.address.slice(-4)}` : "no address yet"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {transferTarget && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-[family-name:var(--font-mono)] text-xs text-stone-500 flex-1 truncate">
+                      To: {transferTarget.slice(0, 10)}...{transferTarget.slice(-6)}
+                    </span>
+                    <button
+                      onClick={handleTransfer}
+                      disabled={transferring}
+                      className="px-3 py-2 text-xs font-[family-name:var(--font-mono)] rounded border border-mana/40 text-mana hover:bg-mana/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {transferring ? "Sending..." : "Confirm Send"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {transferMsg && (
@@ -1987,27 +2057,43 @@ function DeathScreen({
   const multiplier = computeMetaBonuses(accountProg.upgrades).emberMultiplier;
   const emberBreakdown = calculateSoulEmbers(state.floor, state.hero.level, state.killCount, multiplier);
 
-  // Collect all items (inventory + equipped) that were minted on-chain
-  const allItems: Item[] = [
-    ...state.hero.inventory,
-    ...Object.values(state.hero.equipment).filter((i): i is Item => i !== null),
-  ];
-  // Only equippable items (no potions/scrolls) for saving
-  const savableItems = allItems.filter((i) => i.type !== "potion" && i.type !== "scroll");
-
-  const [savedItemId, setSavedItemId] = useState<string | null>(null);
+  // Fetch wallet items on mount so we can show what survived and burn unsaved ones
+  const [walletItems, setWalletItems] = useState<WalletItem[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [savedObjectId, setSavedObjectId] = useState<string | null>(null);
   const [salvageStatus, setSalvageStatus] = useState("");
+  const [burning, setBurning] = useState(false);
+
+  useEffect(() => {
+    if (session) {
+      fetchWalletItems(session.address)
+        .then(setWalletItems)
+        .finally(() => setWalletLoading(false));
+    } else {
+      setWalletLoading(false);
+    }
+  }, [session]);
+
+  // Only show equippable items (no potions/scrolls)
+  const savableItems = walletItems.filter((i) => i.type !== "potion" && i.type !== "scroll");
 
   const handleRetry = async () => {
-    // Burn unsaved items if we have a saved selection and session
     if (session && savableItems.length > 0) {
-      // Items we did NOT save need to be burned
-      // But we only burn items that have objectIds (were minted on-chain)
-      // Since we mint fire-and-forget without tracking objectIds in-game,
-      // the "save" just means we leave the item in the wallet — everything persists.
-      // No burning needed on death — all minted items stay in the wallet.
-      // The user picks 1 to bring into their next run via the naming screen.
-      setSalvageStatus(savedItemId ? "Item saved to your wallet vault." : "");
+      // Burn all wallet items EXCEPT the one they chose to save
+      const toBurn = savableItems
+        .filter((i) => i.objectId !== savedObjectId)
+        .map((i) => i.objectId);
+
+      if (toBurn.length > 0) {
+        setBurning(true);
+        setSalvageStatus("Burning unsaved items...");
+        const ok = await burnItemsOnChain(toBurn, session);
+        setSalvageStatus(ok
+          ? `${toBurn.length} item${toBurn.length !== 1 ? "s" : ""} burned. ${savedObjectId ? "Heirloom saved to vault." : ""}`
+          : "Some items could not be burned (non-critical)."
+        );
+        setBurning(false);
+      }
     }
     onRetry();
   };
@@ -2069,34 +2155,35 @@ function DeathScreen({
           </p>
         )}
 
-        {/* Save 1 Item — items are already minted on-chain, pick which to bring next run */}
-        {savableItems.length > 0 && (
+        {/* Save 1 Item — pick 1 wallet item to keep, burn the rest */}
+        {!walletLoading && savableItems.length > 0 && (
           <div className="card mt-6 text-left">
             <p className="font-[family-name:var(--font-display)] text-sm tracking-wide text-stone-300 mb-1">
               Salvage from the Wreckage
             </p>
             <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mb-3">
-              Your loot lives on-chain in your wallet. Bring 1 heirloom into your next run from the hero select screen.
+              Choose 1 item to save. Everything else will be burned on-chain when you continue.
             </p>
-            <div className="space-y-1">
+            <div className="space-y-1 max-h-48 overflow-y-auto">
               {savableItems.map((item) => (
                 <button
-                  key={item.id}
-                  onClick={() => setSavedItemId(savedItemId === item.id ? null : item.id)}
+                  key={item.objectId}
+                  onClick={() => setSavedObjectId(savedObjectId === item.objectId ? null : item.objectId)}
+                  disabled={burning}
                   className={`w-full flex items-center gap-2 px-3 py-2 border rounded text-left transition-colors ${
-                    savedItemId === item.id
+                    savedObjectId === item.objectId
                       ? "border-gold/40 bg-gold/10"
                       : "border-stone-700/50 hover:border-stone-600"
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   <span className={RARITY_COLORS[item.rarity] || "text-stone-400"}>{item.glyph}</span>
-                  <span className={`font-[family-name:var(--font-mono)] text-xs ${RARITY_COLORS[item.rarity] || "text-stone-400"}`}>
+                  <span className={`font-[family-name:var(--font-mono)] text-xs flex-1 ${RARITY_COLORS[item.rarity] || "text-stone-400"}`}>
                     {item.name}
                   </span>
-                  <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs ml-auto">
+                  <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">
                     {item.type}
                   </span>
-                  {savedItemId === item.id && (
+                  {savedObjectId === item.objectId && (
                     <span className="text-gold text-xs">&#x2713;</span>
                   )}
                 </button>
@@ -2106,6 +2193,11 @@ function DeathScreen({
               <p className="mt-2 text-gold font-[family-name:var(--font-mono)] text-xs">{salvageStatus}</p>
             )}
           </div>
+        )}
+        {walletLoading && (
+          <p className="mt-4 text-stone-500 font-[family-name:var(--font-mono)] text-xs animate-pulse">
+            Loading wallet items...
+          </p>
         )}
 
         {/* Soul Ember Award */}

@@ -70,6 +70,12 @@ async function migrate() {
     ALTER TABLE runs ADD COLUMN IF NOT EXISTS hero_class TEXT NOT NULL DEFAULT 'warden';
   `);
 
+  // Add player_address and player_name to account_progression for trading lookup
+  await pool.query(`
+    ALTER TABLE account_progression ADD COLUMN IF NOT EXISTS player_address TEXT;
+    ALTER TABLE account_progression ADD COLUMN IF NOT EXISTS player_name TEXT;
+  `);
+
   console.log("Migrations complete.");
   await pool.end();
 }
