@@ -1799,6 +1799,29 @@ function NamingScreen({
               <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs ml-auto">
                 {walletItems.length} owned
               </span>
+              {walletItems.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (!session || !confirm(`Burn all ${walletItems.length} items? This cannot be undone.`)) return;
+                    setTransferring(true);
+                    setTransferMsg("Burning all items...");
+                    const ids = walletItems.map((i) => i.objectId);
+                    const ok = await burnItemsOnChain(ids, session);
+                    if (ok) {
+                      setWalletItems([]);
+                      setTransferMsg(`${ids.length} items burned.`);
+                      setSelectedHeirloom(null);
+                    } else {
+                      setTransferMsg("Burn failed — try again.");
+                    }
+                    setTransferring(false);
+                  }}
+                  disabled={transferring}
+                  className="text-blood font-[family-name:var(--font-mono)] text-xs border border-blood/30 hover:border-blood/60 hover:bg-blood/10 px-2 py-0.5 rounded transition-colors disabled:opacity-50"
+                >
+                  Burn All
+                </button>
+              )}
             </div>
             {walletItems.length === 0 && (
               <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">No items in wallet.</p>
