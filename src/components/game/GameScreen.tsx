@@ -1345,10 +1345,19 @@ function NamingScreen({
 
   const metaBonuses = computeMetaBonuses(accountProg.upgrades);
 
+  // Pre-fill last used hero name
+  useEffect(() => {
+    if (nameRef.current) {
+      const lastN = localStorage.getItem("lastHeroName");
+      if (lastN) nameRef.current.value = lastN;
+    }
+  }, [nameRef]);
+
   const handleStart = async () => {
     const name = nameRef.current?.value.trim();
     if (!name) return;
 
+    localStorage.setItem("lastHeroName", name);
     setMinting(true);
     setError("");
     try {
@@ -1385,11 +1394,20 @@ function NamingScreen({
     <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6 overflow-y-auto">
       <div className="fade-in text-center max-w-lg py-12">
         <div className="glyph mb-6">&#x2726; &middot; &#x2726; &middot; &#x2726;</div>
+
+        {accountProg.totalEmbersEarned > 0 && (
+          <p className="font-[family-name:var(--font-mono)] text-xs text-torch mb-4">
+            &#x2726; {accountProg.soulEmbers} Soul Embers — yours to keep forever &#x2726;
+          </p>
+        )}
+
         <h1 className="font-[family-name:var(--font-display)] text-4xl text-stone-200 tracking-[0.08em] mb-2">
-          Create Your Hero
+          {accountProg.totalEmbersEarned > 0 ? "Name Your Next Hero" : "Create Your Hero"}
         </h1>
         <p className="text-stone-500 font-[family-name:var(--font-body)] text-lg mb-8">
-          Name them wisely. Permadeath is permanent.
+          {accountProg.totalEmbersEarned > 0
+            ? "Your hero fell, but your soul embers endure. Forge a stronger successor."
+            : "Name them wisely. Permadeath is permanent."}
         </p>
 
         {saveChecked && savedGame && (
@@ -1467,7 +1485,7 @@ function NamingScreen({
             </span>
           </div>
           <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mb-4">
-            Spend soul embers to strengthen all future heroes.
+            Heroes die, but embers persist. Spend them to permanently strengthen all future heroes.
           </p>
 
           {/* Category tabs */}
