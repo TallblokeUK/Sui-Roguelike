@@ -6,7 +6,7 @@ export interface MetaUpgrade {
   id: string;
   name: string;
   description: string;
-  category: "vitae" | "shadow" | "arcane" | "fortune";
+  category: "vitae" | "shadow" | "arcane" | "fortune" | "mastery";
   maxTier: number;
   tiers: { cost: number; effect: string }[];
 }
@@ -30,6 +30,7 @@ export interface MetaBonuses {
   startingGold: number;
   startingPotionRarity: "common" | "uncommon" | null;
   emberMultiplier: number;
+  unlockedAbilities: string[];
 }
 
 // ─── Upgrade Catalog ───
@@ -174,6 +175,72 @@ export const UPGRADE_CATALOG: MetaUpgrade[] = [
       { cost: 150, effect: "+30% Soul Ember earnings" },
     ],
   },
+
+  // ── Mastery (Unlockable class abilities) ──
+  {
+    id: "warden_ability_4",
+    name: "Rallying Cry",
+    description: "Warden: Heal 15% max HP + cleanse 1 debuff",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 140, effect: "Unlock Rallying Cry ability" }],
+  },
+  {
+    id: "warden_ability_5",
+    name: "Earthquake",
+    description: "Warden: Damage + stun all visible monsters",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 180, effect: "Unlock Earthquake ability" }],
+  },
+  {
+    id: "rogue_ability_4",
+    name: "Envenom",
+    description: "Rogue: Guaranteed 4-turn poison",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 120, effect: "Unlock Envenom ability" }],
+  },
+  {
+    id: "rogue_ability_5",
+    name: "Shadow Dance",
+    description: "Rogue: Untargetable for 2 turns",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 160, effect: "Unlock Shadow Dance ability" }],
+  },
+  {
+    id: "arcanist_ability_4",
+    name: "Chain Lightning",
+    description: "Arcanist: Ranged + bounces to 2 nearby",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 150, effect: "Unlock Chain Lightning ability" }],
+  },
+  {
+    id: "arcanist_ability_5",
+    name: "Voidrift",
+    description: "Arcanist: Teleport to random visible tile",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 120, effect: "Unlock Voidrift ability" }],
+  },
+  {
+    id: "reaver_ability_4",
+    name: "Deathstrike",
+    description: "Reaver: 200% damage, kill = heal 25% HP",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 160, effect: "Unlock Deathstrike ability" }],
+  },
+  {
+    id: "reaver_ability_5",
+    name: "Howl of Fury",
+    description: "Reaver: All visible monsters flee for 2 turns",
+    category: "mastery",
+    maxTier: 1,
+    tiers: [{ cost: 140, effect: "Unlock Howl of Fury ability" }],
+  },
 ];
 
 // ─── Compute bonuses from owned upgrades ───
@@ -221,6 +288,18 @@ export function computeMetaBonuses(upgrades: AccountUpgrades): MetaBonuses {
   const embTier = tier("ember_tithe");
   const emberMultiplier = embTier >= 2 ? 1.3 : embTier >= 1 ? 1.15 : 1.0;
 
+  // Mastery: collect unlocked ability keys
+  const unlockedAbilities: string[] = [];
+  const masteryKeys = [
+    "warden_ability_4", "warden_ability_5",
+    "rogue_ability_4", "rogue_ability_5",
+    "arcanist_ability_4", "arcanist_ability_5",
+    "reaver_ability_4", "reaver_ability_5",
+  ];
+  for (const key of masteryKeys) {
+    if (tier(key) >= 1) unlockedAbilities.push(key);
+  }
+
   return {
     bonusHp,
     bonusAtk,
@@ -232,6 +311,7 @@ export function computeMetaBonuses(upgrades: AccountUpgrades): MetaBonuses {
     startingGold,
     startingPotionRarity,
     emberMultiplier,
+    unlockedAbilities,
   };
 }
 
@@ -289,4 +369,5 @@ export const CATEGORY_NAMES: Record<string, string> = {
   shadow: "Shadow",
   arcane: "Arcane",
   fortune: "Fortune",
+  mastery: "Mastery",
 };

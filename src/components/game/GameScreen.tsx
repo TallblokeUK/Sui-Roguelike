@@ -31,6 +31,9 @@ import {
   emptyProgression,
   getNextTierCost,
 } from "@/lib/game/meta-progression";
+import { CLASS_DEFINITIONS, CLASS_LIST } from "@/lib/game/classes";
+import type { HeroClass } from "@/lib/game/types";
+import { ACHIEVEMENTS } from "@/lib/game/achievements";
 import { useRouter } from "next/navigation";
 import {
   type ZkLoginSession,
@@ -197,6 +200,7 @@ export function GameScreen() {
   const [saveChecked, setSaveChecked] = useState(false);
   const [accountProg, setAccountProg] = useState<AccountProgression>(emptyProgression());
   const [embersEarned, setEmbersEarned] = useState<number | null>(null);
+  const [newAchievements, setNewAchievements] = useState<{id: string; name: string; description: string; emberReward: number}[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -235,7 +239,8 @@ export function GameScreen() {
             soulEmbers: data.soulEmbers,
             totalEmbersEarned: data.totalEmbersEarned,
             upgrades: data.upgrades ?? {},
-          });
+            achievements: data.achievements ?? [],
+          } as AccountProgression);
         }
       })
       .catch(() => {});
@@ -260,6 +265,7 @@ export function GameScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           heroName: state.hero.name,
+          heroClass: state.hero.heroClass,
           level: state.hero.level,
           floor: state.floor,
           kills: state.killCount,
@@ -274,7 +280,7 @@ export function GameScreen() {
         .then(setLeaderboard)
         .catch(() => {});
 
-      // Award soul embers
+      // Award soul embers + check achievements
       fetch("/api/progression", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -283,12 +289,20 @@ export function GameScreen() {
           floor: state.floor,
           level: state.hero.level,
           kills: state.killCount,
+          heroClass: state.hero.heroClass,
+          bossKills: state.bossKillCount,
+          turns: state.turnsElapsed,
+          heroHp: state.hero.hp,
+          heroMaxHp: state.hero.maxHp,
         }),
       })
         .then((r) => r.json())
         .then((data) => {
           if (data.embersEarned != null) {
             setEmbersEarned(data.embersEarned);
+          }
+          if (data.newAchievements?.length > 0) {
+            setNewAchievements(data.newAchievements);
           }
         })
         .catch(() => {});
@@ -308,7 +322,7 @@ export function GameScreen() {
 
   // Delete save on death or victory
   useEffect(() => {
-    if ((state.phase === "dead" || state.phase === "victory") && session) {
+    if (state.phase === "dead" && session) {
       fetch(`/api/save?sub=${encodeURIComponent(session.sub)}`, {
         method: "DELETE",
       }).catch(() => {});
@@ -557,7 +571,7 @@ export function GameScreen() {
         dispatch({ type: "INTERACT" });
       } else if (e.key === "x" || e.key === "X") {
         setAutoExploring(true);
-      } else if (e.key === "1" || e.key === "2" || e.key === "3") {
+      } else if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4" || e.key === "5") {
         const abilityIndex = parseInt(e.key) - 1;
         dispatch({ type: "USE_ABILITY", abilityIndex });
       }
@@ -615,10 +629,12 @@ export function GameScreen() {
         burnStatus={burnStatus}
         embersEarned={embersEarned}
         accountProg={accountProg}
+        newAchievements={newAchievements}
         onRetry={() => {
           deathSaved.current = false;
           setBurnStatus("");
           setEmbersEarned(null);
+          setNewAchievements([]);
           // Refresh progression so NamingScreen shows updated embers
           if (session) {
             fetch(`/api/progression?sub=${encodeURIComponent(session.sub)}`)
@@ -629,7 +645,8 @@ export function GameScreen() {
                     soulEmbers: data.soulEmbers,
                     totalEmbersEarned: data.totalEmbersEarned,
                     upgrades: data.upgrades ?? {},
-                  });
+                    achievements: data.achievements ?? [],
+                  } as AccountProgression);
                 }
               })
               .catch(() => {});
@@ -664,8 +681,8 @@ export function GameScreen() {
           <h1 className="font-[family-name:var(--font-display)] text-xs tracking-[0.15em] text-stone-300">
             Crypts of Sui
           </h1>
-          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-500">
-            {session.name}
+          <span className="font-[family-name:var(--font-mono)] text-xs text-stone-400">
+            {CLASS_DEFINITIONS[state.hero.heroClass]?.glyph} {state.hero.name}
           </span>
           <span className="font-[family-name:var(--font-mono)] text-xs text-stone-400">
             F{state.floor} · K{state.killCount} · T{state.turnsElapsed}
@@ -773,7 +790,7 @@ export function GameScreen() {
           </div>
           <div className="px-4 py-2 border-t border-stone-800/50">
             <p className="text-stone-500 font-[family-name:var(--font-mono)] text-xs">
-              WASD: Move · G: Grab · &gt;: Descend · Space: Wait · 1-3: Abilities · E: Interact · X: Auto · M: Map · ?: Help
+              WASD: Move · G: Grab · &gt;: Descend · Space: Wait · 1-5: Abilities · E: Interact · X: Auto · M: Map · ?: Help
             </p>
             {state.pendingAbility && (
               <p className="text-mana font-[family-name:var(--font-mono)] text-xs mt-1">
@@ -1081,7 +1098,7 @@ function HeroPanel({
           {hero.name}
         </div>
         <div className="font-[family-name:var(--font-mono)] text-xs text-stone-600 mt-0.5">
-          Level {hero.level}
+          {CLASS_DEFINITIONS[hero.heroClass]?.glyph} {CLASS_DEFINITIONS[hero.heroClass]?.name} · Level {hero.level}
         </div>
       </div>
 
@@ -1342,6 +1359,7 @@ function NamingScreen({
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState("");
   const [forgeTab, setForgeTab] = useState<string>("vitae");
+  const [selectedClass, setSelectedClass] = useState<HeroClass>("warden");
 
   const metaBonuses = computeMetaBonuses(accountProg.upgrades);
 
@@ -1362,7 +1380,7 @@ function NamingScreen({
     setError("");
     try {
       const heroObjectId = await mintHeroOnChain(name, senderAddress, sub);
-      dispatch({ type: "START_GAME", name, heroObjectId, metaBonuses });
+      dispatch({ type: "START_GAME", name, heroClass: selectedClass, heroObjectId, metaBonuses });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to mint hero. Try again.",
@@ -1433,6 +1451,38 @@ function NamingScreen({
           </p>
         )}
 
+        {/* Class selection */}
+        <div className="grid grid-cols-2 gap-3 max-w-lg mx-auto mb-6">
+          {CLASS_LIST.map((cls) => {
+            const def = CLASS_DEFINITIONS[cls];
+            const isSelected = selectedClass === cls;
+            return (
+              <button
+                key={cls}
+                onClick={() => setSelectedClass(cls)}
+                className={`text-left px-4 py-3 border rounded transition-colors ${
+                  isSelected
+                    ? "border-gold/60 bg-gold/10"
+                    : "border-stone-700/50 hover:border-stone-600"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{def.glyph}</span>
+                  <span className={`font-[family-name:var(--font-display)] text-sm tracking-wide ${isSelected ? "text-gold" : "text-stone-200"}`}>
+                    {def.name}
+                  </span>
+                </div>
+                <p className="text-stone-500 font-[family-name:var(--font-mono)] text-xs leading-relaxed">
+                  {def.description}
+                </p>
+                <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mt-1 italic">
+                  {def.passive}: {def.passiveDesc}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex gap-3 max-w-sm mx-auto">
           <input
             ref={nameRef}
@@ -1489,7 +1539,7 @@ function NamingScreen({
           </p>
 
           {/* Category tabs */}
-          <div className="flex gap-1 mb-4">
+          <div className="flex gap-1 mb-4 flex-wrap">
             {Object.entries(CATEGORY_NAMES).map(([key, label]) => (
               <button
                 key={key}
@@ -1503,10 +1553,47 @@ function NamingScreen({
                 {label}
               </button>
             ))}
+            <button
+              onClick={() => setForgeTab("trophies")}
+              className={`px-3 py-1 text-xs font-[family-name:var(--font-mono)] rounded border transition-colors ${
+                forgeTab === "trophies"
+                  ? "border-gold/40 text-gold bg-gold/5"
+                  : "border-stone-700/50 text-stone-500 hover:text-stone-300 hover:border-stone-600"
+              }`}
+            >
+              Trophies
+            </button>
           </div>
 
+          {/* Trophies tab */}
+          {forgeTab === "trophies" && (
+            <div className="space-y-2">
+              {ACHIEVEMENTS.map((ach) => {
+                const earned = (accountProg as AccountProgression & { achievements?: string[] }).achievements?.includes(ach.id) ?? false;
+                return (
+                  <div
+                    key={ach.id}
+                    className={`flex items-center justify-between px-3 py-2 border rounded ${
+                      earned ? "border-gold/20 bg-gold/5" : "border-stone-800/50 opacity-60"
+                    }`}
+                  >
+                    <div>
+                      <span className={`font-[family-name:var(--font-display)] text-sm tracking-wide ${earned ? "text-gold" : "text-stone-400"}`}>
+                        {ach.name}
+                      </span>
+                      <p className="text-stone-500 font-[family-name:var(--font-mono)] text-xs">{ach.description}</p>
+                    </div>
+                    <span className={`font-[family-name:var(--font-mono)] text-xs ${earned ? "text-gold" : "text-stone-600"}`}>
+                      {earned ? "\u2713" : `${ach.emberReward}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Upgrades list */}
-          <div className="space-y-2">
+          {forgeTab !== "trophies" && <div className="space-y-2">
             {UPGRADE_CATALOG.filter((u) => u.category === forgeTab).map((upgrade) => {
               const currentTier = accountProg.upgrades[upgrade.id] ?? 0;
               const isMaxed = currentTier >= upgrade.maxTier;
@@ -1553,7 +1640,7 @@ function NamingScreen({
                 </div>
               );
             })}
-          </div>
+          </div>}
         </div>
 
         {leaderboard.length > 0 && (
@@ -1574,6 +1661,7 @@ function DeathScreen({
   onRetry,
   embersEarned,
   accountProg,
+  newAchievements,
 }: {
   state: GameState;
   leaderboard: LeaderboardEntry[];
@@ -1581,6 +1669,7 @@ function DeathScreen({
   onRetry: () => void;
   embersEarned: number | null;
   accountProg: AccountProgression;
+  newAchievements: {id: string; name: string; description: string; emberReward: number}[];
 }) {
   const multiplier = computeMetaBonuses(accountProg.upgrades).emberMultiplier;
   const emberBreakdown = calculateSoulEmbers(state.floor, state.hero.level, state.killCount, multiplier);
@@ -1601,6 +1690,10 @@ function DeathScreen({
             <div className="flex justify-between">
               <span className="text-stone-500">Hero</span>
               <span className="text-stone-300">{state.hero.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-stone-500">Class</span>
+              <span className="text-stone-300">{CLASS_DEFINITIONS[state.hero.heroClass]?.name ?? state.hero.heroClass}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-stone-500">Level</span>
@@ -1655,6 +1748,26 @@ function DeathScreen({
             </div>
           </div>
         </div>
+
+        {/* New Achievements */}
+        {newAchievements.length > 0 && (
+          <div className="card mt-4 text-center">
+            <p className="font-[family-name:var(--font-display)] text-gold-bright tracking-wide text-sm mb-3">
+              Achievements Unlocked!
+            </p>
+            <div className="space-y-2">
+              {newAchievements.map((ach) => (
+                <div key={ach.id} className="flex items-center justify-between px-3 py-2 border border-gold/20 rounded bg-gold/5">
+                  <div className="text-left">
+                    <span className="font-[family-name:var(--font-display)] text-sm text-gold tracking-wide">{ach.name}</span>
+                    <p className="text-stone-500 font-[family-name:var(--font-mono)] text-xs">{ach.description}</p>
+                  </div>
+                  <span className="text-torch font-[family-name:var(--font-mono)] text-xs">+{ach.emberReward}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button className="cta-btn mt-8" onClick={onRetry}>
           Try Again
@@ -1805,7 +1918,7 @@ function HelpOverlay({ onClose }: { onClose: () => void }) {
     ["> / .", "Descend stairs"],
     ["Space", "Wait a turn"],
     ["E", "Interact (shrine/door)"],
-    ["1 / 2 / 3", "Use ability"],
+    ["1-5", "Use ability"],
     ["X", "Auto-explore"],
     ["M", "Toggle minimap"],
     ["?", "Toggle this help"],
@@ -1882,7 +1995,7 @@ function Leaderboard({
               <span
                 className={`truncate ${isHighlighted ? "text-gold" : "text-stone-300"}`}
               >
-                {entry.hero_name}
+                {CLASS_DEFINITIONS[entry.hero_class as HeroClass]?.glyph ?? ""} {entry.hero_name}
               </span>
               <span className="truncate text-stone-600">
                 {entry.player_name}

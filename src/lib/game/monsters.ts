@@ -216,10 +216,9 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
   },
 ];
 
-// ─── Boss templates ───
+// ─── Boss templates (8 bosses, rotate every 40 floors) ───
 export interface BossTemplate extends MonsterTemplate {
   title: string;
-  bossFloor: number;
 }
 
 export const BOSS_TEMPLATES: BossTemplate[] = [
@@ -234,13 +233,7 @@ export const BOSS_TEMPLATES: BossTemplate[] = [
     minFloor: 5,
     behavior: "melee",
     title: "The Warden",
-    bossFloor: 5,
-    statusOnHit: {
-      type: "bleed",
-      chance: 40,
-      duration: 4,
-      damage: 2,
-    },
+    statusOnHit: { type: "bleed", chance: 40, duration: 4, damage: 2 },
   },
   {
     name: "The Lich King",
@@ -254,13 +247,7 @@ export const BOSS_TEMPLATES: BossTemplate[] = [
     behavior: "ranged",
     rangedRange: 5,
     title: "The Lich King",
-    bossFloor: 10,
-    statusOnHit: {
-      type: "burning",
-      chance: 40,
-      duration: 3,
-      damage: 4,
-    },
+    statusOnHit: { type: "burning", chance: 40, duration: 3, damage: 4 },
     special: "summoner",
   },
   {
@@ -274,17 +261,96 @@ export const BOSS_TEMPLATES: BossTemplate[] = [
     minFloor: 15,
     behavior: "melee",
     title: "The Wyrm Lord",
-    bossFloor: 15,
-    statusOnHit: {
-      type: "burning",
-      chance: 50,
-      duration: 3,
-      damage: 5,
-    },
+    statusOnHit: { type: "burning", chance: 50, duration: 3, damage: 5 },
+  },
+  {
+    name: "The Abyss Stalker",
+    glyph: "A",
+    hp: 100,
+    atk: 14,
+    def: 4,
+    xpReward: 100,
+    color: "text-mana",
+    minFloor: 20,
+    behavior: "melee",
+    title: "The Abyss Stalker",
+    statusOnHit: { type: "poison", chance: 50, duration: 5, damage: 3 },
+  },
+  {
+    name: "The Iron Colossus",
+    glyph: "C",
+    hp: 160,
+    atk: 10,
+    def: 14,
+    xpReward: 130,
+    color: "text-stone-300",
+    minFloor: 25,
+    behavior: "melee",
+    title: "The Iron Colossus",
+    statusOnHit: { type: "stun", chance: 35, duration: 2, damage: 0 },
+    special: "regenerate",
+  },
+  {
+    name: "The Plague Mother",
+    glyph: "P",
+    hp: 110,
+    atk: 13,
+    def: 6,
+    xpReward: 110,
+    color: "text-heal",
+    minFloor: 30,
+    behavior: "ranged",
+    rangedRange: 4,
+    title: "The Plague Mother",
+    statusOnHit: { type: "poison", chance: 45, duration: 4, damage: 4 },
+    special: "summoner",
+  },
+  {
+    name: "The Void Reaper",
+    glyph: "V",
+    hp: 140,
+    atk: 18,
+    def: 8,
+    xpReward: 150,
+    color: "text-ice",
+    minFloor: 35,
+    behavior: "melee",
+    title: "The Void Reaper",
+    statusOnHit: { type: "bleed", chance: 50, duration: 5, damage: 4 },
+  },
+  {
+    name: "The Eternal Flame",
+    glyph: "F",
+    hp: 180,
+    atk: 20,
+    def: 10,
+    xpReward: 180,
+    color: "text-blood",
+    minFloor: 40,
+    behavior: "ranged",
+    rangedRange: 5,
+    title: "The Eternal Flame",
+    statusOnHit: { type: "burning", chance: 60, duration: 4, damage: 5 },
   },
 ];
 
-// ─── Get boss for a given floor ───
+// ─── Get boss for a given floor (rotation + scaling) ───
 export function getBossForFloor(floor: number): BossTemplate | undefined {
-  return BOSS_TEMPLATES.find((b) => b.bossFloor === floor);
+  if (floor % 5 !== 0) return undefined;
+  const bossIndex = (floor / 5 - 1) % BOSS_TEMPLATES.length;
+  const cycle = Math.floor((floor / 5 - 1) / BOSS_TEMPLATES.length);
+  const template = BOSS_TEMPLATES[bossIndex];
+
+  // Scale stats by +40% per cycle
+  const scale = 1 + cycle * 0.4;
+  const suffix = cycle >= 1 ? ` Ascended ${"I".repeat(Math.min(cycle, 5))}` : "";
+
+  return {
+    ...template,
+    name: `${template.title}${suffix}`,
+    hp: Math.round(template.hp * scale),
+    atk: Math.round(template.atk * scale),
+    def: Math.round(template.def * scale),
+    xpReward: Math.round(template.xpReward * scale),
+  };
 }

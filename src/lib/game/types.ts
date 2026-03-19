@@ -128,6 +128,9 @@ export interface Monster {
   disguised?: boolean; // mimics: renders as item until revealed
 }
 
+// ─── Hero classes ───
+export type HeroClass = "warden" | "rogue" | "arcanist" | "reaver";
+
 // ─── Passive effects (from level-up choices) ───
 export type PassiveEffect =
   | "vampiric_touch"    // heal 3 HP on kill
@@ -145,6 +148,7 @@ export interface LevelUpChoice {
 // ─── Hero ───
 export interface Hero {
   name: string;
+  heroClass: HeroClass;
   hp: number;
   maxHp: number;
   atk: number;
@@ -163,6 +167,7 @@ export interface Hero {
   passives: PassiveEffect[];
   chosenPerks: string[]; // display names of all level-up choices taken
   gold: number;
+  shadowStepProc?: boolean; // rogue: next attack deals +50% after dodge
 }
 
 // ─── Attack result (for combat log) ───
@@ -199,7 +204,7 @@ export interface LogEntry {
 }
 
 // ─── Game phase ───
-export type GamePhase = "naming" | "playing" | "dead" | "victory" | "level_up";
+export type GamePhase = "naming" | "playing" | "dead" | "level_up";
 
 // ─── Game state ───
 export interface GameState {
@@ -214,6 +219,7 @@ export interface GameState {
   log: LogEntry[];
   turnsElapsed: number;
   killCount: number;
+  bossKillCount: number;
   causeOfDeath: string;
   heroObjectId: string;
   pendingAbility: string | null; // ability waiting for directional input
@@ -226,6 +232,7 @@ export interface GameState {
 export interface LeaderboardEntry {
   hero_name: string;
   player_name: string;
+  hero_class: string;
   level: number;
   floor: number;
   kills: number;
@@ -236,7 +243,7 @@ export interface LeaderboardEntry {
 
 // ─── Actions ───
 export type GameAction =
-  | { type: "START_GAME"; name: string; heroObjectId: string; metaBonuses?: import("./meta-progression").MetaBonuses }
+  | { type: "START_GAME"; name: string; heroClass: HeroClass; heroObjectId: string; metaBonuses?: import("./meta-progression").MetaBonuses }
   | { type: "MOVE"; direction: Direction }
   | { type: "DESCEND" }
   | { type: "PICKUP" }

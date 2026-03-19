@@ -27,14 +27,17 @@ import {
   formatHeroAttack,
   formatMonsterAttack,
 } from "./combat";
-import { getStartingAbilities, executeAbility, tickCooldowns, regenEnergy } from "./abilities";
+import { executeAbility, tickCooldowns, regenEnergy } from "./abilities";
 import { generateLevelUpChoices, applyLevelUpChoice } from "./progression";
 import { countSetPieces, generateShopItems, generatePotion } from "./items";
 import type { MetaBonuses } from "./meta-progression";
+import type { HeroClass } from "./types";
+import { CLASS_DEFINITIONS, getClassAbilities, UNLOCKABLE_ABILITIES } from "./classes";
 
 // ─── Initial hero stats ───
-function createHero(name: string, start: Position, meta?: MetaBonuses): Hero {
-  const hp = 30 + (meta?.bonusHp ?? 0);
+function createHero(name: string, heroClass: HeroClass, start: Position, meta?: MetaBonuses): Hero {
+  const classDef = CLASS_DEFINITIONS[heroClass];
+  const hp = 30 + classDef.hpOffset + (meta?.bonusHp ?? 0);
   const inventory: Item[] = [];
 
   // Starting potion from Grave Goods
@@ -43,23 +46,35 @@ function createHero(name: string, start: Position, meta?: MetaBonuses): Hero {
     if (potion) inventory.push(potion);
   }
 
+  // Class starting abilities + any unlocked abilities from Dark Forge mastery
+  const abilities = getClassAbilities(heroClass);
+  if (meta?.unlockedAbilities) {
+    for (const abilityKey of meta.unlockedAbilities) {
+      const unlock = UNLOCKABLE_ABILITIES[abilityKey];
+      if (unlock && unlock.heroClass === heroClass) {
+        abilities.push({ ...unlock.ability, currentCooldown: 0 });
+      }
+    }
+  }
+
   return {
     name,
+    heroClass,
     hp,
     maxHp: hp,
-    atk: 5 + (meta?.bonusAtk ?? 0),
-    def: 2 + (meta?.bonusDef ?? 0),
+    atk: 5 + classDef.atkOffset + (meta?.bonusAtk ?? 0),
+    def: 2 + classDef.defOffset + (meta?.bonusDef ?? 0),
     xp: 0,
     level: 1,
     pos: start,
     inventory,
     equipment: { weapon: null, helmet: null, chest: null, legs: null, boots: null, gloves: null, ring: null, amulet: null, bracelet: null },
-    dodge: 3 + (meta?.bonusDodge ?? 0),
-    critChance: 5 + (meta?.bonusCrit ?? 0),
-    energy: 5 + (meta?.bonusEnergy ?? 0),
-    maxEnergy: 5 + (meta?.bonusEnergy ?? 0),
+    dodge: 3 + classDef.dodgeOffset + (meta?.bonusDodge ?? 0),
+    critChance: 5 + classDef.critOffset + (meta?.bonusCrit ?? 0),
+    energy: 5 + classDef.energyOffset + (meta?.bonusEnergy ?? 0),
+    maxEnergy: 5 + classDef.energyOffset + (meta?.bonusEnergy ?? 0),
     statusEffects: [],
-    abilities: getStartingAbilities(),
+    abilities,
     passives: [...(meta?.startingPassives ?? [])],
     chosenPerks: [],
     gold: meta?.startingGold ?? 0,
@@ -157,7 +172,7 @@ export function getHeroDodge(hero: Hero): number {
 export function createInitialState(): GameState {
   return {
     phase: "naming",
-    hero: createHero("", { x: 0, y: 0 }),
+    hero: createHero("", "warden", { x: 0, y: 0 }),
     floor: 0,
     map: [],
     mapWidth: MAP_WIDTH,
@@ -167,6 +182,7 @@ export function createInitialState(): GameState {
     log: [{ text: "Welcome to the Crypts of Sui.", type: "info" }],
     turnsElapsed: 0,
     killCount: 0,
+    bossKillCount: 0,
     causeOfDeath: "",
     heroObjectId: "",
     pendingAbility: null,
@@ -251,6 +267,14 @@ function processMonsterStatusTicks(state: GameState): GameState {
       log.push({ text: `${mon.name} dies from status effects! (+${mon.xpReward} XP, +${goldDrop} gold)`, type: "combat" });
       hero.xp += mon.xpReward;
       killCount += 1;
+      // Class passives on kill
+      if (hero.heroClass === "reaver") {
+        const healAmt = Math.min(2, getHeroMaxHp(hero) - hero.hp);
+        if (healAmt > 0) { hero.hp += healAmt; }
+      }
+      if (hero.heroClass === "arcanist") {
+        hero.energy = Math.min(hero.maxEnergy, hero.energy + 1);
+      }
       monsters = monsters.filter((_, j) => j !== i);
     } else {
       monsters[i] = { ...mon, hp: newHp, statusEffects: result.remaining };
@@ -260,11 +284,13 @@ function processMonsterStatusTicks(state: GameState): GameState {
   return { ...state, monsters, log, killCount, hero };
 }
 
-// ─── Apply thick_skin passive damage reduction ───
+// ─── Apply damage reduction (thick_skin passive + Warden Iron Resolve) ───
 function applyDamageReduction(hero: Hero, damage: number): number {
-  if (hero.passives.includes("thick_skin")) {
-    return Math.max(1, damage - 1);
-  }
+  let reduction = 0;
+  if (hero.passives.includes("thick_skin")) reduction += 1;
+  // Warden class passive: Iron Resolve — take 1 less damage from all sources
+  if (hero.heroClass === "warden") reduction += 1;
+  if (reduction > 0) return Math.max(1, damage - reduction);
   return damage;
 }
 
@@ -387,6 +413,10 @@ function moveMonsters(state: GameState): GameState {
             mon.hp -= 1;
             newLog.push({ text: `Guardian set reflects 1 damage to ${mon.name}!`, type: "status" });
           }
+        } else if (newHero.heroClass === "rogue") {
+          // Rogue class passive: Shadow Step — after dodging, next attack deals +50% damage
+          newHero = { ...newHero, shadowStepProc: true };
+          newLog.push({ text: "Shadow Step: next attack deals +50% damage!", type: "status" });
         }
 
         if (dist <= 2) {
@@ -417,6 +447,9 @@ function moveMonsters(state: GameState): GameState {
           mon.hp -= 1;
           newLog.push({ text: `Guardian set reflects 1 damage to ${mon.name}!`, type: "status" });
         }
+      } else if (newHero.heroClass === "rogue") {
+        newHero = { ...newHero, shadowStepProc: true };
+        newLog.push({ text: "Shadow Step: next attack deals +50% damage!", type: "status" });
       }
     } else {
       const stepX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
@@ -465,6 +498,9 @@ function moveMonsters(state: GameState): GameState {
             mon.hp -= 1;
             newLog.push({ text: `Guardian set reflects 1 damage to ${mon.name}!`, type: "status" });
           }
+        } else if (newHero.heroClass === "rogue") {
+          newHero = { ...newHero, shadowStepProc: true };
+          newLog.push({ text: "Shadow Step: next attack deals +50% damage!", type: "status" });
         }
       }
     }
@@ -555,15 +591,17 @@ function checkDeath(state: GameState): GameState {
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "START_GAME": {
-      const hero = createHero(action.name, { x: 0, y: 0 }, action.metaBonuses);
+      const hero = createHero(action.name, action.heroClass, { x: 0, y: 0 }, action.metaBonuses);
+      const classDef = CLASS_DEFINITIONS[action.heroClass];
       const newState = {
         ...state,
         phase: "playing" as const,
         hero,
         heroObjectId: action.heroObjectId,
+        bossKillCount: 0,
         log: [
           ...state.log,
-          { text: `${action.name} enters the Crypts of Sui...`, type: "info" as const },
+          { text: `${action.name} the ${classDef.name} enters the Crypts of Sui...`, type: "info" as const },
         ],
       };
       return enterFloor(newState, 1);
@@ -618,11 +656,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (mon.disguised) {
           mon.disguised = false;
         }
-        const heroAtk = getHeroAtk(state.hero);
+        let heroAtk = getHeroAtk(state.hero);
+        // Rogue Shadow Step proc: +50% damage on next attack after dodge
+        const hadShadowStep = state.hero.shadowStepProc;
+        if (hadShadowStep) {
+          heroAtk = Math.floor(heroAtk * 1.5);
+        }
         const heroCrit = getHeroCrit(state.hero);
         const result = resolveMeleeAttack(heroAtk, mon.def, heroCrit, 0, state.hero.equipment.weapon?.name.includes("Venom") ? { type: "poison", chance: 20, duration: 3, damage: 2 } : undefined);
 
         const log: LogEntry[] = [...state.log];
+        if (hadShadowStep) {
+          log.push({ text: "Shadow Step empowers your attack!", type: "ability" });
+        }
 
         // Mimic surprise reveal
         if (state.monsters[targetMonster].disguised) {
@@ -653,8 +699,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
 
         let monsters: Monster[];
-        let hero = { ...state.hero };
+        let hero = { ...state.hero, shadowStepProc: false };
         let killCount = state.killCount;
+        let bossKillCount = state.bossKillCount;
 
         if (mon.hp <= 0) {
           monsters = state.monsters.filter((_, i) => i !== targetMonster);
@@ -667,6 +714,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             const bossGold = goldDrop * 3;
             hero.gold += bossGold - goldDrop; // replace with 3x
             log.push({ text: `${mon.name} has been vanquished! The stairs unseal. (+${mon.xpReward} XP, +${bossGold} gold)`, type: "level" });
+            bossKillCount += 1;
           } else {
             log.push({ text: `${mon.name} is slain! (+${mon.xpReward} XP, +${goldDrop} gold)`, type: "combat" });
           }
@@ -677,6 +725,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               hero.hp += healAmt;
               log.push({ text: `Vampiric Touch heals ${healAmt} HP!`, type: "status" });
             }
+          }
+          // Reaver class passive: Bloodthirst — heal 2 HP on kill
+          if (hero.heroClass === "reaver") {
+            const healAmt = Math.min(2, getHeroMaxHp(hero) - hero.hp);
+            if (healAmt > 0) {
+              hero.hp += healAmt;
+              log.push({ text: `Bloodthirst heals ${healAmt} HP!`, type: "status" });
+            }
+          }
+          // Arcanist class passive: Mana Siphon — +1 energy on kill
+          if (hero.heroClass === "arcanist") {
+            hero.energy = Math.min(hero.maxEnergy, hero.energy + 1);
+            log.push({ text: "Mana Siphon: +1 energy!", type: "status" });
           }
         } else {
           monsters = [...state.monsters];
@@ -690,6 +751,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           log,
           turnsElapsed: state.turnsElapsed + 1,
           killCount,
+          bossKillCount,
         };
 
         s = checkLevelUp(s);

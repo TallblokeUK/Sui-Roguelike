@@ -12,7 +12,7 @@ export const maxDuration = 15;
 export async function GET() {
   try {
     const { rows } = await pool.query(`
-      SELECT hero_name, player_name, level, floor, kills, turns, cause_of_death, created_at
+      SELECT hero_name, player_name, hero_class, level, floor, kills, turns, cause_of_death, created_at
       FROM runs
       ORDER BY floor DESC, level DESC, kills DESC
       LIMIT 20
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       heroName,
+      heroClass,
       level,
       floor,
       kills,
@@ -49,13 +50,14 @@ export async function POST(req: NextRequest) {
 
     // 1. Save to database
     await pool.query(
-      `INSERT INTO runs (id, user_id, hero_name, player_name, level, floor, kills, turns, cause_of_death)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO runs (id, user_id, hero_name, player_name, hero_class, level, floor, kills, turns, cause_of_death)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         id,
         sub || playerAddress || "unknown",
         heroName,
         playerName || "Adventurer",
+        heroClass || "warden",
         level,
         floor,
         kills,

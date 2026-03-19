@@ -55,8 +55,19 @@ async function migrate() {
       soul_embers INTEGER NOT NULL DEFAULT 0,
       total_embers_earned INTEGER NOT NULL DEFAULT 0,
       upgrades JSONB NOT NULL DEFAULT '{}',
+      achievements JSONB NOT NULL DEFAULT '[]',
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
+  `);
+
+  // Add achievements column if it doesn't exist (for existing tables)
+  await pool.query(`
+    ALTER TABLE account_progression ADD COLUMN IF NOT EXISTS achievements JSONB NOT NULL DEFAULT '[]';
+  `);
+
+  // Add hero_class column to runs if it doesn't exist
+  await pool.query(`
+    ALTER TABLE runs ADD COLUMN IF NOT EXISTS hero_class TEXT NOT NULL DEFAULT 'warden';
   `);
 
   console.log("Migrations complete.");
