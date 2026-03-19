@@ -1360,6 +1360,7 @@ function NamingScreen({
   const [error, setError] = useState("");
   const [forgeTab, setForgeTab] = useState<string>("vitae");
   const [selectedClass, setSelectedClass] = useState<HeroClass>("warden");
+  const [showHelp, setShowHelp] = useState(false);
 
   const metaBonuses = computeMetaBonuses(accountProg.upgrades);
 
@@ -1515,11 +1516,14 @@ function NamingScreen({
           </p>
         )}
 
-        <div className="mt-10 text-stone-700 font-[family-name:var(--font-mono)] text-xs space-y-1">
-          <p>WASD or Arrow Keys to move</p>
-          <p>Bump into enemies to attack</p>
-          <p>G to pick up items · &gt; to descend stairs</p>
-        </div>
+        <button
+          onClick={() => setShowHelp(true)}
+          className="mt-10 text-stone-600 hover:text-stone-400 font-[family-name:var(--font-mono)] text-xs border border-stone-700/50 hover:border-stone-600 px-4 py-2 rounded transition-colors"
+        >
+          ? How to Play
+        </button>
+
+        {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
 
         {/* Dark Forge */}
         <div className="mt-10 card max-w-lg mx-auto text-left">
@@ -1913,25 +1917,41 @@ function ShopOverlay({
 // ─── Help Overlay ───
 function HelpOverlay({ onClose }: { onClose: () => void }) {
   const bindings = [
-    ["W/A/S/D / Arrows", "Move"],
+    ["W/A/S/D / Arrows", "Move / bump to attack"],
     ["G / ,", "Pick up item"],
     ["> / .", "Descend stairs"],
     ["Space", "Wait a turn"],
-    ["E", "Interact (shrine/door)"],
-    ["1-5", "Use ability"],
+    ["E", "Interact (shrine / shop)"],
+    ["1-5", "Use class ability"],
     ["X", "Auto-explore"],
     ["M", "Toggle minimap"],
     ["?", "Toggle this help"],
-    ["Esc", "Cancel / close"],
+    ["Esc", "Cancel / close shop"],
+  ];
+
+  const tips = [
+    "Each class has unique abilities and a passive. Choose wisely.",
+    "Bosses appear every 5 floors. The dungeon is endless — depth is the goal.",
+    "After each boss cycle (8 bosses), they return stronger as Ascended.",
+    "Soul Embers earned on death are permanent. Spend them in the Dark Forge.",
+    "Unlock extra abilities (keys 4-5) via Mastery upgrades in the Dark Forge.",
+    "Shrines offer random boons — step on the center and press E.",
+    "Shops sell gear for gold. Gold drops from kills and scales with floor depth.",
+    "Items found in the dungeon are minted on-chain to your wallet.",
+    "Achievements reward bonus embers. Check the Trophies tab in the Dark Forge.",
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="card max-w-sm w-full mx-4 fade-in" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-w-md w-full mx-4 fade-in max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-[family-name:var(--font-display)] text-lg text-stone-200 tracking-wide mb-4 text-center">
-          Key Bindings
+          How to Play
         </h2>
-        <div className="space-y-1.5">
+
+        <h3 className="font-[family-name:var(--font-display)] text-xs text-stone-500 tracking-wider uppercase mb-2">
+          Controls
+        </h3>
+        <div className="space-y-1.5 mb-5">
           {bindings.map(([key, desc]) => (
             <div key={key} className="flex justify-between text-xs font-[family-name:var(--font-mono)]">
               <span className="text-gold">{key}</span>
@@ -1939,7 +1959,19 @@ function HelpOverlay({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
-        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mt-4 text-center">
+
+        <h3 className="font-[family-name:var(--font-display)] text-xs text-stone-500 tracking-wider uppercase mb-2">
+          Tips
+        </h3>
+        <div className="space-y-2 mb-4">
+          {tips.map((tip, i) => (
+            <p key={i} className="text-xs font-[family-name:var(--font-mono)] text-stone-400 leading-relaxed">
+              <span className="text-stone-600 mr-1">&bull;</span>{tip}
+            </p>
+          ))}
+        </div>
+
+        <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs text-center">
           Press ? or Esc to close
         </p>
       </div>
