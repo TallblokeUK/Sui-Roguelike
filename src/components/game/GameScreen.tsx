@@ -1409,8 +1409,8 @@ function NamingScreen({
   };
 
   return (
-    <div className="h-dvh flex flex-col items-center justify-center stone-bg noise px-6 overflow-y-auto">
-      <div className="fade-in text-center max-w-lg py-12">
+    <div className="min-h-dvh flex flex-col items-center stone-bg noise px-6 overflow-y-auto">
+      <div className="fade-in text-center max-w-lg py-12 w-full">
         <div className="glyph mb-6">&#x2726; &middot; &#x2726; &middot; &#x2726;</div>
 
         {accountProg.totalEmbersEarned > 0 && (
