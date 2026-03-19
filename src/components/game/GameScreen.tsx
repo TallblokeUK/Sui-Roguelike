@@ -164,17 +164,22 @@ async function burnHeroOnChain(
   }
 }
 
-/** Burn item objects on-chain via sponsored transaction (batches of 10) */
+/** Burn item objects on-chain via sponsored transaction (batches of 5) */
 async function burnItemsOnChain(
   itemObjectIds: string[],
   session: ZkLoginSession,
+  onStatus?: (msg: string) => void,
 ): Promise<boolean> {
   if (!itemObjectIds.length) return true;
 
-  // Batch into groups of 10 to avoid PTB limits
-  const batchSize = 10;
+  // Batch into groups of 5 to avoid PTB/gas limits
+  const batchSize = 5;
   for (let i = 0; i < itemObjectIds.length; i += batchSize) {
     const batch = itemObjectIds.slice(i, i + batchSize);
+    const batchNum = Math.floor(i / batchSize) + 1;
+    const totalBatches = Math.ceil(itemObjectIds.length / batchSize);
+    onStatus?.(`Burning batch ${batchNum}/${totalBatches}...`);
+
     try {
       const res = await fetch("/api/items/burn", {
         method: "POST",
@@ -183,7 +188,9 @@ async function burnItemsOnChain(
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        console.error("Item burn API error:", err.error || res.status);
+        const msg = err.error || `HTTP ${res.status}`;
+        console.error("Item burn API error:", msg);
+        onStatus?.(`Burn failed: ${msg}`);
         return false;
       }
       const { sponsoredTxBytes, sponsorSignature } = await res.json();
@@ -200,7 +207,9 @@ async function burnItemsOnChain(
         options: { showEffects: true },
       });
     } catch (err) {
-      console.error("Item burn error:", err instanceof Error ? err.message : err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Item burn error:", msg);
+      onStatus?.(`Burn failed: ${msg}`);
       return false;
     }
   }
@@ -1816,13 +1825,11 @@ function NamingScreen({
                     setTransferring(true);
                     setTransferMsg("Burning all items...");
                     const ids = walletItems.map((i) => i.objectId);
-                    const ok = await burnItemsOnChain(ids, session);
+                    const ok = await burnItemsOnChain(ids, session, setTransferMsg);
                     if (ok) {
                       setWalletItems([]);
                       setTransferMsg(`${ids.length} items burned.`);
                       setSelectedHeirloom(null);
-                    } else {
-                      setTransferMsg("Burn failed — try again.");
                     }
                     setTransferring(false);
                   }}
