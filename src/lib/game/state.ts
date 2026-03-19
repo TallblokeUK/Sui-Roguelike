@@ -610,6 +610,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case "START_GAME": {
       const hero = createHero(action.name, action.heroClass, { x: 0, y: 0 }, action.metaBonuses);
       const classDef = CLASS_DEFINITIONS[action.heroClass];
+      // Add wallet heirloom items to inventory
+      if (action.walletItems?.length) {
+        for (const item of action.walletItems) {
+          if (hero.inventory.length < MAX_INVENTORY) {
+            hero.inventory.push(item);
+          }
+        }
+      }
       const newState = {
         ...state,
         phase: "playing" as const,
@@ -619,6 +627,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [
           ...state.log,
           { text: `${action.name} the ${classDef.name} enters the Crypts of Sui...`, type: "info" as const },
+          ...(action.walletItems?.length ? [{ text: `Brought ${action.walletItems.length} heirloom${action.walletItems.length > 1 ? "s" : ""} from the vault.`, type: "loot" as const }] : []),
         ],
       };
       return enterFloor(newState, 1);

@@ -45,6 +45,16 @@ import {
 import { fromBase64 } from "@mysten/sui/utils";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 
+interface WalletItem {
+  objectId: string;
+  name: string;
+  type: string;
+  rarity: string;
+  value: number;
+  glyph: string;
+  description: string;
+}
+
 const RARITY_COLORS: Record<string, string> = {
   common: "text-stone-500",
   uncommon: "text-stone-300",
@@ -151,6 +161,93 @@ async function burnHeroOnChain(
     console.error("Burn error (non-critical):", msg);
     // Death is already recorded on-chain via record_death — burn just cleans up the NFT
     onStatus("Death recorded on-chain");
+  }
+}
+
+/** Burn item objects on-chain via sponsored transaction */
+async function burnItemsOnChain(
+  itemObjectIds: string[],
+  session: ZkLoginSession,
+): Promise<boolean> {
+  if (!itemObjectIds.length) return true;
+  try {
+    const res = await fetch("/api/items/burn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemObjectIds, sender: session.address }),
+    });
+    if (!res.ok) return false;
+    const { sponsoredTxBytes, sponsorSignature } = await res.json();
+
+    const ephemeralKeyPair = deserializeKeypair(session.ephemeralKeyPairB64);
+    const { signature: userSignature } =
+      await ephemeralKeyPair.signTransaction(fromBase64(sponsoredTxBytes));
+    const zkLoginSig = createZkLoginSignature(session, userSignature);
+
+    const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
+    await suiClient.executeTransactionBlock({
+      transactionBlock: sponsoredTxBytes,
+      signature: [zkLoginSig, sponsorSignature],
+      options: { showEffects: true },
+    });
+    return true;
+  } catch (err) {
+    console.error("Item burn error:", err);
+    return false;
+  }
+}
+
+/** Fetch wallet items owned by address */
+async function fetchWalletItems(owner: string): Promise<WalletItem[]> {
+  try {
+    const res = await fetch(`/api/wallet/items?owner=${encodeURIComponent(owner)}`);
+    if (!res.ok) return [];
+    const { items } = await res.json();
+    return items || [];
+  } catch {
+    return [];
+  }
+}
+
+/** Transfer an item to another address */
+async function transferItemOnChain(
+  itemObjectId: string,
+  recipientAddress: string,
+  session: ZkLoginSession,
+): Promise<boolean> {
+  try {
+    // Build a PTB with transferObjects
+    const { Transaction } = await import("@mysten/sui/transactions");
+    const { toBase64: toB64 } = await import("@mysten/sui/utils");
+
+    const tx = new Transaction();
+    tx.transferObjects([tx.object(itemObjectId)], tx.pure.address(recipientAddress));
+
+    const kindBytes = await tx.build({ client: new SuiClient({ url: getFullnodeUrl("testnet") }), onlyTransactionKind: true });
+    // Get sponsored tx
+    const sponsorRes = await fetch("/api/sponsor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ txKindBytes: toB64(kindBytes), sender: session.address }),
+    });
+    if (!sponsorRes.ok) return false;
+    const { sponsoredTxBytes, sponsorSignature } = await sponsorRes.json();
+
+    const ephemeralKeyPair = deserializeKeypair(session.ephemeralKeyPairB64);
+    const { signature: userSignature } =
+      await ephemeralKeyPair.signTransaction(fromBase64(sponsoredTxBytes));
+    const zkLoginSig = createZkLoginSignature(session, userSignature);
+
+    const suiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
+    await suiClient.executeTransactionBlock({
+      transactionBlock: sponsoredTxBytes,
+      signature: [zkLoginSig, sponsorSignature],
+      options: { showEffects: true },
+    });
+    return true;
+  } catch (err) {
+    console.error("Transfer error:", err);
+    return false;
   }
 }
 
@@ -618,6 +715,7 @@ export function GameScreen() {
         }}
         accountProg={accountProg}
         onProgUpdate={setAccountProg}
+        session={session}
       />
     );
   }
@@ -632,6 +730,7 @@ export function GameScreen() {
         embersEarned={embersEarned}
         accountProg={accountProg}
         newAchievements={newAchievements}
+        session={session}
         onRetry={() => {
           deathSaved.current = false;
           setBurnStatus("");
@@ -1362,6 +1461,7 @@ function NamingScreen({
   onContinue,
   accountProg,
   onProgUpdate,
+  session,
 }: {
   nameRef: React.RefObject<HTMLInputElement | null>;
   dispatch: React.Dispatch<import("@/lib/game/types").GameAction>;
@@ -1374,12 +1474,21 @@ function NamingScreen({
   onContinue: () => void;
   accountProg: AccountProgression;
   onProgUpdate: (p: AccountProgression) => void;
+  session: ZkLoginSession | null;
 }) {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState("");
   const [forgeTab, setForgeTab] = useState<string>("vitae");
   const [selectedClass, setSelectedClass] = useState<HeroClass>("warden");
   const [showHelp, setShowHelp] = useState(false);
+  const [walletItems, setWalletItems] = useState<WalletItem[]>([]);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [selectedHeirloom, setSelectedHeirloom] = useState<WalletItem | null>(null);
+  const [showWallet, setShowWallet] = useState(false);
+  const [transferTarget, setTransferTarget] = useState("");
+  const [transferItemId, setTransferItemId] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [transferMsg, setTransferMsg] = useState("");
 
   const metaBonuses = computeMetaBonuses(accountProg.upgrades);
 
@@ -1391,6 +1500,15 @@ function NamingScreen({
     }
   }, [nameRef]);
 
+  // Fetch wallet items on mount
+  useEffect(() => {
+    if (!senderAddress) return;
+    setWalletLoading(true);
+    fetchWalletItems(senderAddress)
+      .then(setWalletItems)
+      .finally(() => setWalletLoading(false));
+  }, [senderAddress]);
+
   const handleStart = async () => {
     const name = nameRef.current?.value.trim();
     if (!name) return;
@@ -1399,14 +1517,56 @@ function NamingScreen({
     setMinting(true);
     setError("");
     try {
+      // If an heirloom is selected, burn it on-chain first (consume from wallet)
+      if (selectedHeirloom && session) {
+        const burned = await burnItemsOnChain([selectedHeirloom.objectId], session);
+        if (!burned) {
+          setError("Failed to burn heirloom item. Try again.");
+          setMinting(false);
+          return;
+        }
+      }
+
       const heroObjectId = await mintHeroOnChain(name, senderAddress, sub);
-      dispatch({ type: "START_GAME", name, heroClass: selectedClass, heroObjectId, metaBonuses });
+
+      // Convert wallet item to game Item
+      const walletItemsForGame: Item[] = selectedHeirloom ? [{
+        id: `heirloom-${selectedHeirloom.objectId}`,
+        name: selectedHeirloom.name,
+        type: selectedHeirloom.type as Item["type"],
+        rarity: selectedHeirloom.rarity as Item["rarity"],
+        value: selectedHeirloom.value,
+        glyph: selectedHeirloom.glyph,
+        description: selectedHeirloom.description,
+      }] : [];
+
+      dispatch({ type: "START_GAME", name, heroClass: selectedClass, heroObjectId, metaBonuses, walletItems: walletItemsForGame });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to mint hero. Try again.",
       );
       setMinting(false);
     }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferItemId || !transferTarget || !session) return;
+    if (!transferTarget.startsWith("0x") || transferTarget.length < 10) {
+      setTransferMsg("Invalid Sui address");
+      return;
+    }
+    setTransferring(true);
+    setTransferMsg("");
+    const ok = await transferItemOnChain(transferItemId, transferTarget, session);
+    if (ok) {
+      setTransferMsg("Item sent!");
+      setWalletItems((prev) => prev.filter((i) => i.objectId !== transferItemId));
+      setTransferItemId(null);
+      setTransferTarget("");
+    } else {
+      setTransferMsg("Transfer failed");
+    }
+    setTransferring(false);
   };
 
   const handlePurchase = async (upgradeId: string) => {
@@ -1526,7 +1686,7 @@ function NamingScreen({
 
         {minting && (
           <p className="mt-4 text-torch font-[family-name:var(--font-mono)] text-xs animate-pulse">
-            Minting hero on Sui...
+            {selectedHeirloom ? "Burning heirloom & minting hero..." : "Minting hero on Sui..."}
           </p>
         )}
         {error && (
@@ -1535,14 +1695,142 @@ function NamingScreen({
           </p>
         )}
 
-        <button
-          onClick={() => setShowHelp(true)}
-          className="mt-10 text-stone-600 hover:text-stone-400 font-[family-name:var(--font-mono)] text-xs border border-stone-700/50 hover:border-stone-600 px-4 py-2 rounded transition-colors"
-        >
-          ? How to Play
-        </button>
+        {/* Heirloom — equip 1 wallet item */}
+        {!walletLoading && walletItems.length > 0 && (
+          <div className="card mt-6 max-w-lg mx-auto text-left">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-gold-bright">&#x2726;</span>
+              <h3 className="font-[family-name:var(--font-display)] text-sm tracking-wide text-stone-300">
+                Heirloom Vault
+              </h3>
+              <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs ml-auto">
+                {walletItems.length} item{walletItems.length !== 1 ? "s" : ""} in wallet
+              </span>
+            </div>
+            <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mb-3">
+              Bring 1 item from your wallet into this run. The item will be consumed from chain.
+            </p>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {walletItems.filter((i) => i.type !== "potion" && i.type !== "scroll").map((item) => (
+                <button
+                  key={item.objectId}
+                  onClick={() => setSelectedHeirloom(selectedHeirloom?.objectId === item.objectId ? null : item)}
+                  disabled={minting}
+                  className={`w-full flex items-center gap-2 px-3 py-2 border rounded text-left transition-colors ${
+                    selectedHeirloom?.objectId === item.objectId
+                      ? "border-gold/40 bg-gold/10"
+                      : "border-stone-700/50 hover:border-stone-600"
+                  } disabled:opacity-50`}
+                >
+                  <span className={RARITY_COLORS[item.rarity] || "text-stone-400"}>{item.glyph}</span>
+                  <span className={`font-[family-name:var(--font-mono)] text-xs flex-1 ${RARITY_COLORS[item.rarity] || "text-stone-400"}`}>
+                    {item.name}
+                  </span>
+                  <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">
+                    {item.type}
+                  </span>
+                  {selectedHeirloom?.objectId === item.objectId && (
+                    <span className="text-gold text-xs">&#x2713;</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {selectedHeirloom && (
+              <p className="mt-2 text-gold font-[family-name:var(--font-mono)] text-xs">
+                {selectedHeirloom.name} will be consumed from chain and added to inventory.
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-8 justify-center">
+          <button
+            onClick={() => setShowHelp(true)}
+            className="text-stone-600 hover:text-stone-400 font-[family-name:var(--font-mono)] text-xs border border-stone-700/50 hover:border-stone-600 px-4 py-2 rounded transition-colors"
+          >
+            ? How to Play
+          </button>
+          {walletItems.length > 0 && (
+            <button
+              onClick={() => setShowWallet(!showWallet)}
+              className={`font-[family-name:var(--font-mono)] text-xs border px-4 py-2 rounded transition-colors ${
+                showWallet
+                  ? "text-gold border-gold/40 bg-gold/5"
+                  : "text-stone-600 hover:text-stone-400 border-stone-700/50 hover:border-stone-600"
+              }`}
+            >
+              &#x1F4E6; Wallet &amp; Trade
+            </button>
+          )}
+        </div>
 
         {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
+
+        {/* Wallet / Trading Panel */}
+        {showWallet && (
+          <div className="card mt-6 max-w-lg mx-auto text-left">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="font-[family-name:var(--font-display)] text-sm tracking-wide text-stone-300">
+                Wallet Items
+              </h3>
+              <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs ml-auto">
+                {walletItems.length} owned
+              </span>
+            </div>
+            {walletItems.length === 0 && (
+              <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">No items in wallet.</p>
+            )}
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {walletItems.map((item) => (
+                <div
+                  key={item.objectId}
+                  className={`flex items-center gap-2 px-3 py-2 border rounded transition-colors ${
+                    transferItemId === item.objectId
+                      ? "border-mana/40 bg-mana/5"
+                      : "border-stone-700/50"
+                  }`}
+                >
+                  <span className={RARITY_COLORS[item.rarity] || "text-stone-400"}>{item.glyph}</span>
+                  <span className={`font-[family-name:var(--font-mono)] text-xs flex-1 ${RARITY_COLORS[item.rarity] || "text-stone-400"}`}>
+                    {item.name}
+                  </span>
+                  <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs">
+                    {item.type}
+                  </span>
+                  <button
+                    onClick={() => setTransferItemId(transferItemId === item.objectId ? null : item.objectId)}
+                    className="text-stone-500 hover:text-mana font-[family-name:var(--font-mono)] text-xs border border-stone-700/50 hover:border-mana/40 px-2 py-0.5 rounded"
+                  >
+                    Send
+                  </button>
+                </div>
+              ))}
+            </div>
+            {transferItemId && (
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Recipient 0x address..."
+                  value={transferTarget}
+                  onChange={(e) => setTransferTarget(e.target.value)}
+                  className="flex-1 bg-stone-900 border border-stone-700 rounded px-3 py-2 text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-mana/40 font-[family-name:var(--font-mono)] text-xs"
+                />
+                <button
+                  onClick={handleTransfer}
+                  disabled={transferring || !transferTarget}
+                  className="px-3 py-2 text-xs font-[family-name:var(--font-mono)] rounded border border-mana/40 text-mana hover:bg-mana/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {transferring ? "..." : "Transfer"}
+                </button>
+              </div>
+            )}
+            {transferMsg && (
+              <p className={`mt-2 font-[family-name:var(--font-mono)] text-xs ${
+                transferMsg.includes("sent") ? "text-heal" : "text-blood"
+              }`}>{transferMsg}</p>
+            )}
+          </div>
+        )}
 
         {/* Dark Forge */}
         <div className="mt-10 card max-w-lg mx-auto text-left">
@@ -1685,6 +1973,7 @@ function DeathScreen({
   embersEarned,
   accountProg,
   newAchievements,
+  session,
 }: {
   state: GameState;
   leaderboard: LeaderboardEntry[];
@@ -1693,9 +1982,36 @@ function DeathScreen({
   embersEarned: number | null;
   accountProg: AccountProgression;
   newAchievements: {id: string; name: string; description: string; emberReward: number}[];
+  session: ZkLoginSession | null;
 }) {
   const multiplier = computeMetaBonuses(accountProg.upgrades).emberMultiplier;
   const emberBreakdown = calculateSoulEmbers(state.floor, state.hero.level, state.killCount, multiplier);
+
+  // Collect all items (inventory + equipped) that were minted on-chain
+  const allItems: Item[] = [
+    ...state.hero.inventory,
+    ...Object.values(state.hero.equipment).filter((i): i is Item => i !== null),
+  ];
+  // Only equippable items (no potions/scrolls) for saving
+  const savableItems = allItems.filter((i) => i.type !== "potion" && i.type !== "scroll");
+
+  const [savedItemId, setSavedItemId] = useState<string | null>(null);
+  const [salvageStatus, setSalvageStatus] = useState("");
+
+  const handleRetry = async () => {
+    // Burn unsaved items if we have a saved selection and session
+    if (session && savableItems.length > 0) {
+      // Items we did NOT save need to be burned
+      // But we only burn items that have objectIds (were minted on-chain)
+      // Since we mint fire-and-forget without tracking objectIds in-game,
+      // the "save" just means we leave the item in the wallet — everything persists.
+      // No burning needed on death — all minted items stay in the wallet.
+      // The user picks 1 to bring into their next run via the naming screen.
+      setSalvageStatus(savedItemId ? "Item saved to your wallet vault." : "");
+    }
+    onRetry();
+  };
+
   return (
     <div className="min-h-dvh flex flex-col items-center stone-bg noise px-6 overflow-y-auto">
       <div className="fade-in text-center max-w-lg py-12">
@@ -1753,6 +2069,45 @@ function DeathScreen({
           </p>
         )}
 
+        {/* Save 1 Item — items are already minted on-chain, pick which to bring next run */}
+        {savableItems.length > 0 && (
+          <div className="card mt-6 text-left">
+            <p className="font-[family-name:var(--font-display)] text-sm tracking-wide text-stone-300 mb-1">
+              Salvage from the Wreckage
+            </p>
+            <p className="text-stone-600 font-[family-name:var(--font-mono)] text-xs mb-3">
+              Your loot lives on-chain in your wallet. Bring 1 heirloom into your next run from the hero select screen.
+            </p>
+            <div className="space-y-1">
+              {savableItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setSavedItemId(savedItemId === item.id ? null : item.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 border rounded text-left transition-colors ${
+                    savedItemId === item.id
+                      ? "border-gold/40 bg-gold/10"
+                      : "border-stone-700/50 hover:border-stone-600"
+                  }`}
+                >
+                  <span className={RARITY_COLORS[item.rarity] || "text-stone-400"}>{item.glyph}</span>
+                  <span className={`font-[family-name:var(--font-mono)] text-xs ${RARITY_COLORS[item.rarity] || "text-stone-400"}`}>
+                    {item.name}
+                  </span>
+                  <span className="text-stone-600 font-[family-name:var(--font-mono)] text-xs ml-auto">
+                    {item.type}
+                  </span>
+                  {savedItemId === item.id && (
+                    <span className="text-gold text-xs">&#x2713;</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {salvageStatus && (
+              <p className="mt-2 text-gold font-[family-name:var(--font-mono)] text-xs">{salvageStatus}</p>
+            )}
+          </div>
+        )}
+
         {/* Soul Ember Award */}
         <div className="card mt-6 text-center">
           <p className="font-[family-name:var(--font-display)] text-torch tracking-wide text-sm mb-3">
@@ -1792,7 +2147,7 @@ function DeathScreen({
           </div>
         )}
 
-        <button className="cta-btn mt-8" onClick={onRetry}>
+        <button className="cta-btn mt-8" onClick={handleRetry}>
           Try Again
         </button>
 

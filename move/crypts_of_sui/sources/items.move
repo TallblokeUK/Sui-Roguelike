@@ -72,3 +72,10 @@ public entry fun mint_item(
 
     transfer::public_transfer(item, recipient);
 }
+
+/// Burn an item — permanently destroy it on-chain.
+/// Must be called by the item's owner (the player via zkLogin).
+public entry fun burn_item(item: Item) {
+    let Item { id, name: _, item_type: _, rarity: _, value: _, glyph: _, description: _ } = item;
+    object::delete(id);
+}

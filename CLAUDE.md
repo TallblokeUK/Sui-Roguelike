@@ -15,9 +15,10 @@ On-chain roguelike dungeon crawler built on Sui blockchain.
 ### Move Smart Contracts
 Deployed on Sui Testnet. Package ID: `0xaaea1e1a848829be913672b827bf9b0791b950ec0afe029d552bad6dea4e2ce2`
 - `move/crypts_of_sui/sources/hero.move` — Hero mint (with recipient) / burn + HeroDeath events
-- `move/crypts_of_sui/sources/items.move` — Item mint (with recipient) + ItemMint events
+- `move/crypts_of_sui/sources/items.move` — Item mint (with recipient) / burn + ItemMint events
 - Mint functions accept a `recipient: address` parameter — sponsor signs but items go to the player's zkLogin address
 - Burn requires the owner (player) to call — done client-side with zkLogin signing
+- `burn_item` added in package upgrade — callable via UPGRADED_PACKAGE_ID
 
 ### On-Chain Integration (Hybrid Model)
 Game logic (dungeon gen, combat, FOV, movement) runs client-side in React useReducer.
@@ -25,6 +26,9 @@ Sui blockchain handles key moments:
 1. **Hero mint** — `POST /api/hero/mint` sponsor creates a Hero object, transfers to player's zkLogin address
 2. **Item mint** — `POST /api/items/mint` sponsor creates Item objects, transfers to player's address (fire-and-forget)
 3. **Hero burn** — Client-side zkLogin + sponsored transaction. Player signs with ephemeral key + ZK proof to burn their owned Hero object on death
+4. **Item burn** — `POST /api/items/burn` sponsored batch burn of item objects (used when consuming heirlooms)
+5. **Wallet items** — `GET /api/wallet/items?owner=0x...` fetches all Item objects owned by a player
+6. **Item transfer** — Client-side PTB using `transferObjects`, sponsored via `/api/sponsor`
 
 ### Authentication (zkLogin)
 Players authenticate via Google OAuth → Sui zkLogin. No wallet extension needed.
@@ -69,7 +73,8 @@ Server-side leaderboard stored in Postgres `runs` table. Death records saved whe
 - `scripts/migrate.ts` — Creates/updates `runs` table (run with `npx tsx scripts/migrate.ts`)
 
 ### Environment Variables
-- `NEXT_PUBLIC_PACKAGE_ID` — Deployed Move package address on Sui testnet
+- `NEXT_PUBLIC_PACKAGE_ID` — Original Move package address on Sui testnet (used for event types)
+- `NEXT_PUBLIC_UPGRADED_PACKAGE_ID` — Upgraded Move package address (used for calling new functions like burn_item)
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — Google OAuth Client ID for zkLogin
 - `POSTGRES_URL` — Vercel Postgres connection string
 - `ZKLOGIN_SALT_SECRET` — Secret for deterministic salt derivation (falls back to BETTER_AUTH_SECRET)

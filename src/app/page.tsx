@@ -66,13 +66,13 @@ export default function Home() {
           <StepCard
             step="II"
             title="Enter the Crypts"
-            desc="Procedurally generated dungeon floors. Each room holds monsters, traps, or treasure. Every action is an on-chain transaction."
+            desc="Procedurally generated dungeon floors. Each room holds monsters, traps, or treasure. Key moments are recorded on-chain."
             delay={0.15}
           />
           <StepCard
             step="III"
             title="Survive or Perish"
-            desc="Loot is real — on-chain objects in your wallet. Trade them, equip them, hoard them. But permadeath is permanent. Die, and your hero is burned forever."
+            desc="Loot is real — on-chain objects in your wallet. Trade them, gift them, or bring an heirloom into your next run. But permadeath is permanent. Die, and your hero is burned forever."
             delay={0.3}
           />
         </div>
@@ -95,13 +95,13 @@ export default function Home() {
           </p>
           <p>
             When you find a legendary weapon on floor 19, it&rsquo;s <span className="text-gold">minted to your wallet</span>.
-            You can trade it, gift it, or equip it on your next hero. It&rsquo;s yours.
+            Trade it, gift it to a friend, or bring it as an heirloom into your next hero&rsquo;s run. It&rsquo;s yours.
           </p>
         </div>
 
         <div className="mt-12 flex justify-center gap-6 text-sm">
           <TechBadge label="Sui Move" />
-          <TechBadge label="On-Chain Logic" />
+          <TechBadge label="On-Chain Assets" />
           <TechBadge label="Sponsored Gas" />
           <TechBadge label="Permadeath" />
         </div>
@@ -130,7 +130,7 @@ export default function Home() {
       <footer className="border-t border-stone-800/30 px-6 py-8 text-center">
         <div className="glyph mb-3">&#x2726; &middot; &#x2726;</div>
         <p className="text-stone-500 text-xs tracking-wider">
-          Built on Sui Testnet &middot; Every action is on-chain &middot; Open source
+          Built on Sui Testnet &middot; Heroes &amp; loot live on-chain &middot; Open source
         </p>
       </footer>
     </div>

@@ -92,6 +92,7 @@ export interface Item {
   scrollEffect?: ScrollEffect;
   cursed?: boolean;
   setId?: string; // items with same setId form a set
+  objectId?: string; // on-chain Sui object ID (for wallet items)
 }
 
 // ─── Equipment slots ───
@@ -243,7 +244,7 @@ export interface LeaderboardEntry {
 
 // ─── Actions ───
 export type GameAction =
-  | { type: "START_GAME"; name: string; heroClass: HeroClass; heroObjectId: string; metaBonuses?: import("./meta-progression").MetaBonuses }
+  | { type: "START_GAME"; name: string; heroClass: HeroClass; heroObjectId: string; metaBonuses?: import("./meta-progression").MetaBonuses; walletItems?: Item[] }
   | { type: "MOVE"; direction: Direction }
   | { type: "DESCEND" }
   | { type: "PICKUP" }
