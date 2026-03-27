@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// prover-dev is for devnet only; testnet/mainnet use the production prover
-const PROVER_URL = "https://prover.mystenlabs.com/v1";
+// Production prover for testnet/mainnet; prover-dev for devnet only
+// Override with ZKLOGIN_PROVER_URL env var if needed
+const PROVER_URL = process.env.ZKLOGIN_PROVER_URL || "https://prover-dev.mystenlabs.com/v1";
 
 export const maxDuration = 30;
 
@@ -23,8 +24,9 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const text = await res.text();
       console.error("Prover error:", res.status, text);
+      // Return the prover's actual error message so we can debug
       return NextResponse.json(
-        { error: `Prover returned ${res.status}` },
+        { error: `Prover returned ${res.status}: ${text}` },
         { status: res.status },
       );
     }
